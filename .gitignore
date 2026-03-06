@@ -1,0 +1,43 @@
+# ==========================================
+# GLOABAL IGNORES
+# ==========================================
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+venv/
+env/
+.env
+.venv
+test_env/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# PROJECT SPECIFIC IGNORES
+# ==========================================
+
+# Step 1: Downloaded data (keep the script, ignore the heavy raw JSONs)
+step1_download_laws/documents_collection/
+
+# Step 2: Generated multi-GB datasets
+step2_preprocessing/accountant_rag_dataset/
+
+# Step 3: Vector Database (very heavy and generated locally)
+step3_ingestion/laws_vector_db/
+
+# Prevent committing old zip files or temp downloads if any
+*.zip
+*.log

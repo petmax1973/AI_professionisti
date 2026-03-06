@@ -1,0 +1,52 @@
+Obiettivo dello Step 1: Acquisizione dei Dati Legali (Download)
+Lo script 
+
+step1_download_laws/export_laws_2.py
+ è il motore di acquisizione (crawler/downloader) del progetto. Il suo scopo esclusivo è interfacciarsi con le API pubbliche della banca dati statale "Normattiva", interrogare il sistema per trovare le leggi aggiornate e scaricarle in un formato strutturato (JSON) per la successiva elaborazione.
+
+A differenza di uno scaricamento manuale, questo script automatizza la complessa "danza" asincrona richiesta dal server ministeriale per generare l'esportazione di una legge.
+
+Come funziona lo script passo per passo:
+1. Configurazione Parametrica Iniziale All'inizio del file sono definite delle costanti cruciali:
+
+EFFECTIVE_DATE / START_DATE_OF_ENACTMENT: I filtri temporali per restringere il campo di ricerca.
+MAX_DOCS_PER_TYPE: Limita il numero di documenti da scaricare per ogni tipologia in modo da poter fare test veloci o scaricare solo le ultimissime novità, evitando di inondare i server.
+ACT_TYPES: Una lista esaustiva di 30 tipologie di atti (Costituzione, Leggi, Decreti Legislativi, DPCM, ecc.) che l'IA dovrà conoscere.
+2. Ricerca e Filtraggio Iniziale Per ognuno dei 30 tipi di atto legislativo definiti, lo script interroga l'API di "Ricerca Avanzata" (ricerca/avanzata). Richiede al server l'elenco dei documenti più recenti (fino a MAX_DOCS_PER_TYPE) e recupera una prima lista di metadati basilari (Titolo, Numero, Anno).
+
+3. Verifica di Esistenza (Idempotenza) Prima di avviare il pesante processo di download, lo script costruisce il nome del file finale (es. legge_27_february_2026_n_26.json) traducendo i mesi in inglese standard per coerenza internazionale. Se questo file è già presente sul disco (nella sua sotto-cartella specifica), lo script lo "salta" in modo intelligente. Questo significa che puoi eseguire lo script tutti i giorni, e scaricherà solo le nuove leggi emanate in quelle ultime 24 ore, risparmiando tempo e connettività.
+
+4. Il Ciclo di Esportazione Asincrona (La "Danza" API) Se il file è una novità, lo script inizia la comunicazione con Normattiva. Il download non è immediato, ma richiede 4 passaggi di rete obbligatori:
+
+Richiesta di Estrazione: Invia un payload specificando l'atto esatto, chiedendo al server di preparare un'esportazione in formato "JSON". Riceve indietro un "Token" di tracciamento.
+Conferma: Invia una seconda chiamata per "confermare" l'avvio del lavoro.
+Polling (Attesa Attiva): Il server ministeriale impiega del tempo per generare il pacchetto. Lo script "bussa" periodicamente (ogni 4 secondi) a un endpoint di stato (check-status) finché il server non risponde che il pacchetto è pronto (stato "3").
+Download Reale: Solo a questo punto avvia lo scaricamento vero e proprio dei dati.
+5. Estrazione Ottimizzata In-Memory (Zero IO Access) Il server del ministero restituisce sempre il file compresso dentro un archivio .zip. Invece di salvare il .zip sull'hard disk, decomprimerlo, leggere il file e poi cancellare i file temporanei, lo script utilizza l'ottimizzazione io.BytesIO().
+
+Scarica l'intero archivio .zip direttamente nella memoria RAM del Mac.
+Lo "scompatta" elettronicamente al volo in mezzo decimo di secondo.
+Estrae il puro file JSON da dentro l'archivio volatile.
+Salva direttamente quel prezioso JSON testuale pulito nel percorso finale (es. documents_collection/legge/).
+In sintesi per la documentazione: Lo script è un worker autonomo e resiliente. Interroga le API Statali, controlla se ci sono leggi nuove che non possiedi ancora rispetto al tuo archivio locale, gestisce l'intero ciclo asincrono di creazione del pacchetto sui server ministeriali, decodifica gli archivi compatti in RAM e deposita documenti legali in rigorosi file JSON divisi per categoria. Costituisce la sorgente dati affidabile e pulsante di tutto il sistema RAG.
+
+---
+
+Come Eseguire lo Script `export_laws_2.py`:
+
+Questo script richiede un ambiente virtuale isolato (`venv`) per gestire la dipendenza esterna `requests`.
+
+1. Apri un terminale.
+2. Posizionati all'interno della cartella dello Step 1:
+   cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step1_download_laws
+
+3. **Solo la prima volta**, crea l'ambiente e installa le dipendenze lanciando lo script di setup:
+   ./setup_env.sh
+
+4. Per ogni sessione successiva, attiva l'ambiente:
+   source venv/bin/activate
+
+5. Esegui lo script:
+   python export_laws_2.py
+
+Quando hai finito, se desideri uscire dall'ambiente virtuale su terminale, ti basta digitare il comando `deactivate`.

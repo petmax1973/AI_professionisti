@@ -1,0 +1,39 @@
+Latest 1000 laws (the newest ones, including the one from February 2026)
+
+curl 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca/avanzata' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Content-Type: application/json' \
+  -H 'Connection: keep-alive' \
+  -H 'User-Agent: Mozilla/5.0' \
+  --data-raw '{"denominazioneAtto":"LEGGE","orderType":"recente","vigenza":"2026-03-01","paginazione":{"paginaCorrente":1,"numeroElementiPerPagina":1000}}' | jq > recent_laws_list.json
+
+output: recent_laws_list.json
+
+===========================================================
+===========================================================
+
+Complete text only of the first law (LAW 27 february 2026, n. 27) in JSON format (via asynchronous API that bypasses the WAF):
+
+# 1. Start asynchronous export (save the received token from output, es: bbe2c735...)
+curl 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca-asincrona/nuova-ricerca' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Content-Type: application/json' \
+  -H 'Connection: keep-alive' \
+  -H 'User-Agent: Mozilla/5.0' \
+  --data-raw '{"formato":"JSON","tipoRicerca":"A","modalita":"C","parametriRicerca":{"denominazioneAtto":"LEGGE","orderType":"recente","vigenza":"2026-03-01","paginazione":{"paginaCorrente":1,"numeroElementiPerPagina":1},"dataInizioEmanazione":"2026-02-27","dataFineEmanazione":"2026-02-27","numeroProvvedimento":"27"}}' | jq
+
+# 2. Confirm the search using the <OBTAINED_TOKEN>
+curl 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca-asincrona/conferma-ricerca' -X 'PUT' -H 'Content-Type: application/json' --data-raw '{"token":"<OBTAINED_TOKEN>"}'
+
+# 3. Interrogate the status (when status is 303 the link to the JSON will be in the response header x-ipzs-location)
+curl 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca-asincrona/check-status/<OBTAINED_TOKEN>' -i
+
+# 4. Materially download the ZIP file (replace the token)
+curl -L 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/collections/download/collection-asincrona/<OBTAINED_TOKEN>' \
+   -H 'Accept: application/json, text/plain, */*' \
+   -H 'Connection: keep-alive' \
+   -H 'User-Agent: Mozilla/5.0' \
+   --output result_law_27.zip
+
+# And then extract the JSON from the downloaded zip:
+ unzip result_law_27.zip -d extracted_laws

@@ -1,0 +1,68 @@
+Obiettivo dello Step 3: Indicizzazione e Vettorializzazione (Ingestion)
+Lo script `step3_ingestion/ingest_rag.py` rappresenta la fase finale della preparazione dei dati. Il suo scopo è prendere i frammenti di testo "leggibili dall'uomo" (creati nello Step 2) e tradurli in un formato matematico "leggibile dall'Intelligenza Artificiale", salvandoli in un database vettoriale interrogabile.
+
+Come funziona lo script passo per passo:
+
+1. Inizializzazione del Modello linguistico (Embedding)
+Il cuore dello script è il modello di "embedding". Lo script scarica e inizializza un modello linguistico open-source specializzato (`intfloat/multilingual-e5-base`), ottimo per la lingua italiana e il linguaggio legale.
+Questo modello non "legge" le parole, ma le trasforma in vettori semantici (lunghe sequenze di numeri) che ne catturano il reale significato profondo.
+Inoltre, per garantire massime prestazioni, lo script tenta di sfruttare l'accelerazione hardware della scheda video (`mps` sui chip Apple Silicon M1/M2/M3), ripiegando sulla normale CPU (`cpu`) se non disponibile.
+
+2. Lettura del Dataset in Streaming
+Lo script deve elaborare il dataset `dataset_rag_langchain.jsonl` (generato nello Step 2). Invece di caricare l'intero file in memoria RAM (che potrebbe causare blocchi se il file è enorme), utilizza un "Generatore Python" (tramite la funzione `iter_jsonl_documents`).
+Questo approccio permette di leggere il dataset riga per riga costantemente: carica un singolo chunk, estrae il testo e i metadati, lo passa alla fase successiva per la catalogazione ed elimina quello in memoria per fare spazio al successivo.
+
+3. Vettorializzazione a Blocchi (Batching)
+Una volta letto un frammento, il modello di embedding lo converte in coordinate matematiche. Poiché questa operazione richiede molta potenza di calcolo, lo script organizza il lavoro a blocchi (batch) di 100 documenti alla volta.
+Invia questi 100 documenti al modello, ottiene le traduzioni matematiche e le accumula. Questo approccio a lotti assicura estrema velocità e previene surriscaldamenti del Mac.
+
+4. Creazione e Salvataggio del Database Vettoriale (ChromaDB)
+Man mano che i blocchi vengono vettorializzati, vengono immediatamente salvati in un database vettoriale locale chiamato `ChromaDB`.
+Il database viene fisicamente creato o aggiornato per persistere nel tempo all'interno della cartella `laws_vector_db`.
+Questo database non archivia semplicemente i testi, ma li mappa graficamente in uno spazio tridimensionale infinito in base al loro "significato geometrico". In futuro, quando un utente farà una domanda al RAG, il sistema trasformerà la domanda in un vettore e cercherà nel database i paragrafi di legge che sono posti "più vicini" al significato della domanda.
+
+In sintesi per la documentazione:
+Lo script `ingest_rag.py` agisce come un traduttore matematico e un archivista. Prende il testo legale pulito, lo analizza semanticamente tramite un modello di intelligenza artificiale locale e popola in streaming un database vettoriale (ChromaDB) lavorando in blocchi ottimizzati. Il risultato finale è un motore di ricerca locale incancellabile, pronto per essere interrogato istantaneamente da un LLM per generare risposte legali ultra-precise.
+# ==========================================
+# STEP 3: DATABASE INGESTION INSTRUCTIONS
+# ==========================================
+
+This step takes the preprocessed text chunks from Step 2 and converts them into an AI-readable Vector Database using ChromaDB.
+
+## Prerequisites
+You must have Python 3 installed. The script uses a heavy AI library (LangChain) and a Machine Learning model. To avoid contaminating your Mac's global Python environment, we use an isolated Virtual Environment (`venv`).
+
+## 1. Initial Setup (Run Only Once)
+First, you need to execute the setup script. This will create a `venv` folder and install all the required heavy dependencies inside it automatically.
+Open your terminal and run:
+cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step3_ingestion
+./setup_env.sh
+
+## 2. Activating the Environment (Run Every Time)
+CRITICAL: Before running the Python script, you MUST activate the virtual environment! If you see errors like `ModuleNotFoundError: No module named 'langchain_community'`, it means you skipped this step.
+Run:
+source venv/bin/activate
+(You will notice `(venv)` appears at the beginning of your terminal prompt).
+
+## 3. Running the Ingestion
+Once the environment is active, you can safely run the database builder:
+python3 ingest_rag.py
+
+Note: The very first time you run this, it will automatically download the `intfloat/multilingual-e5-base` language model (approx. 500MB).
+The database will be generated in batches and saved to the `laws_vector_db` folder.
+
+## 4. Deactivating the Environment
+When you are completely finished with Step 3, you can exit the virtual environment by simply typing:
+deactivate
+
+
+# ==========================================
+# DIPENDENZE (requirements.txt)
+# ==========================================
+
+langchain==0.2.14
+langchain-community==0.2.12
+langchain-huggingface==0.0.3
+chromadb==0.5.5
+sentence-transformers==3.0.1
+pydantic==2.8.2
