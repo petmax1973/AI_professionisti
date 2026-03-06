@@ -41,3 +41,6 @@ step3_ingestion/laws_vector_db/
 # Prevent committing old zip files or temp downloads if any
 *.zip
 *.log
+
+# Claude/AI Config
+.claude*
