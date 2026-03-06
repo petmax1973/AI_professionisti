@@ -30,6 +30,8 @@ Lo script `chat_rag.py` chiude il cerchio del progetto. Unisce in tempo reale il
 
 Per avviare la chat:
 
+0. **Prerequisito Critico**: Assicurati che l'applicazione **Ollama** sia avviata sul tuo Mac e in esecuzione in background. Se non lo hai ancora fatto, scarica il modello installandolo con il comando `ollama run llama3`.
+
 1. Apri un terminale.
 2. Posizionati all'interno della cartella dello Step 4:
    cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step4_inference
