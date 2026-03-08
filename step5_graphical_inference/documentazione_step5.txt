@@ -7,7 +7,7 @@ L'applicazione utilizza Streamlit per renderizzare nel browser la chat, conserva
 2. Utilizza il database `laws_vector_db` locale.
 3. Utilizza `Ollama` locale per la generazione delle risposte.
 
-L'interfaccia si divide in due modalità operative, selezionabili dalla barra laterale sinistra (Sidebar):
+L'interfaccia si divide in tre modalità operative, selezionabili dalla barra laterale sinistra (Sidebar):
 
 1. **Ricerca Normativa (Leggi)**: (Predefinita)
    - Interroga le leggi, i codici e le normative di stato contenute nel database vettoriale locale creato nello Step 3.
@@ -26,14 +26,13 @@ L'interfaccia si divide in due modalità operative, selezionabili dalla barra la
 
 ### Istruzioni per l'Avvio:
 
-0. **Prerequisito Critico**: L'applicazione **Ollama** deve essere in esecuzione in background sul tuo Mac (con il modello `llama3` installato).
-
+0. **Prerequisito Critico**: L'applicazione **Ollama** deve essere in esecuzione in background sul tuo Mac (di default con il modello `llama3` installato).
+   - *Nota sul Modello AI*: Se possiedi o preferisci utilizzare un altro modello tramite Ollama (es. `mistral` o `gemma`), lo script funzionerà perfettamente. Devi solo aprire il file `app.py`, cercare la riga `LLM_MODEL_NAME = "llama3"` (circa riga 28) e sostituire "llama3" con il nome esatto del tuo modello. Assicurati che il modello scelto comprenda bene l'italiano.
 1. Apri un terminale.
 2. Posizionati all'interno della cartella dello Step 5:
-   `cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step5_graphical_inference`
+   `cd /step5_graphical_inference`
 
-**A. PRIMA ESECUZIONE IN ASSOLUTO (Installazione Iniziale)**
-Se non hai mai avviato lo Step 5 prima d'ora, installa l'ambiente con questo comando:
+**A. Solo ed esclusivamente la prima volta, installa l'ambiente con questo comando:**
    `chmod +x setup_env.sh && ./setup_env.sh`
 
 **B. ESECUZIONI SUCCESSIVE (Avvio Normale)**

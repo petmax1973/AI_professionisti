@@ -34,9 +34,9 @@ Per avviare la chat:
 
 1. Apri un terminale.
 2. Posizionati all'interno della cartella dello Step 4:
-   cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step4_inference
+   cd /step4_inference
 
-3. La prima volta in assoluto, installa l'ambiente con:
+3. Solo ed esclusivamente la prima volta, installa l'ambiente con:
    ./setup_env.sh
 
 4. Per ogni sessione successiva, attiva l'ambiente:

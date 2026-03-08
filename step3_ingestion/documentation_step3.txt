@@ -23,36 +23,37 @@ Questo database non archivia semplicemente i testi, ma li mappa graficamente in 
 
 In sintesi per la documentazione:
 Lo script `ingest_rag.py` agisce come un traduttore matematico e un archivista. Prende il testo legale pulito, lo analizza semanticamente tramite un modello di intelligenza artificiale locale e popola in streaming un database vettoriale (ChromaDB) lavorando in blocchi ottimizzati. Il risultato finale è un motore di ricerca locale incancellabile, pronto per essere interrogato istantaneamente da un LLM per generare risposte legali ultra-precise.
+
 # ==========================================
-# STEP 3: DATABASE INGESTION INSTRUCTIONS
+# STEP 3: ISTRUZIONI PER L'INGESTION NEL DATABASE
 # ==========================================
 
-This step takes the preprocessed text chunks from Step 2 and converts them into an AI-readable Vector Database using ChromaDB.
+Questo step prende i frammenti di testo elaborati dallo Step 2 e li converte in un Database Vettoriale leggibile dall'IA utilizzando ChromaDB.
 
-## Prerequisites
-You must have Python 3 installed. The script uses a heavy AI library (LangChain) and a Machine Learning model. To avoid contaminating your Mac's global Python environment, we use an isolated Virtual Environment (`venv`).
+## Prerequisiti
+Devi avere Python 3 installato. Lo script utilizza una libreria IA pesante (LangChain) e un modello di Machine Learning. Per evitare di contaminare l'ambiente Python globale del tuo Mac, utilizziamo un Ambiente Virtuale isolato (`venv`).
 
-## 1. Initial Setup (Run Only Once)
-First, you need to execute the setup script. This will create a `venv` folder and install all the required heavy dependencies inside it automatically.
-Open your terminal and run:
-cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step3_ingestion
+## 1. Setup Iniziale (Esegui solo ed esclusivamente la prima volta)
+Per prima cosa, devi eseguire lo script di setup. Questo creerà una cartella `venv` e installerà automaticamente tutte le dipendenze pesanti necessarie al suo interno.
+Apri il tuo terminale ed esegui:
+cd /step3_ingestion
 ./setup_env.sh
 
-## 2. Activating the Environment (Run Every Time)
-CRITICAL: Before running the Python script, you MUST activate the virtual environment! If you see errors like `ModuleNotFoundError: No module named 'langchain_community'`, it means you skipped this step.
-Run:
+## 2. Attivazione dell'Ambiente (Esegui ogni volta)
+CRITICO: Prima di eseguire lo script Python, DEVI attivare l'ambiente virtuale! Se vedi errori come `ModuleNotFoundError: No module named 'langchain_community'`, significa che hai saltato questo passaggio.
+Esegui:
 source venv/bin/activate
-(You will notice `(venv)` appears at the beginning of your terminal prompt).
+(Noterai che `(venv)` apparirà all'inizio del prompt del tuo terminale).
 
-## 3. Running the Ingestion
-Once the environment is active, you can safely run the database builder:
+## 3. Esecuzione dell'Ingestion
+Una volta che l'ambiente è attivo, puoi avviare in sicurezza la costruzione del database:
 python3 ingest_rag.py
 
-Note: The very first time you run this, it will automatically download the `intfloat/multilingual-e5-base` language model (approx. 500MB).
-The database will be generated in batches and saved to the `laws_vector_db` folder.
+Nota: La primissima volta che esegui questo script, scaricherà automaticamente il modello linguistico `intfloat/multilingual-e5-base` (circa 500MB).
+Il database verrà generato a blocchi e salvato nella cartella `laws_vector_db`.
 
-## 4. Deactivating the Environment
-When you are completely finished with Step 3, you can exit the virtual environment by simply typing:
+## 4. Disattivazione dell'Ambiente
+Quando hai completamente finito con lo Step 3, puoi uscire dall'ambiente virtuale semplicemente digitando:
 deactivate
 
 

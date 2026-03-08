@@ -48,7 +48,7 @@ Questo script utilizza esclusivamente le librerie standard di Python (`json`, `o
 
 1. Apri un terminale.
 2. Posizionati all'interno della cartella dello Step 2:
-   cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step2_preprocessing
+   /step2_preprocessing
 
 3. Esegui lo script direttamente con Python:
    python preprocess_rag.py
