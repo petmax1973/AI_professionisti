@@ -10,7 +10,8 @@ import zipfile
 # =========================
 EFFECTIVE_DATE = "2026-03-01"
 START_DATE_OF_ENACTMENT = "1972-01-01"
-MAX_DOCS_PER_TYPE = 3
+#MAX_DOCS_PER_TYPE = None # Set to None to download ALL documents via pagination
+MAX_DOCS_PER_TYPE = 5 # Set to None to download ALL documents via pagination
 
 ACT_TYPES = [
     "COSTITUZIONE",
@@ -78,28 +79,54 @@ def download_documents():
        
         search_url = 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca/avanzata'
         
-        print(f"  Downloading list of up to 10 most recent acts for {act_type}...")
-        list_payload = {
-            "denominazioneAtto": act_type,
-            "orderType": "recente",
-            "vigenza": EFFECTIVE_DATE,
-            "dataInizioEmanazione": START_DATE_OF_ENACTMENT,
-            "paginazione": {
-                "paginaCorrente": 1,
-                "numeroElementiPerPagina": MAX_DOCS_PER_TYPE
+        acts = []
+        current_page = 1
+        elements_per_page = 50 
+        
+        while True:
+            remaining = None
+            if MAX_DOCS_PER_TYPE is not None:
+                remaining = MAX_DOCS_PER_TYPE - len(acts)
+                if remaining <= 0:
+                    break
+            
+            fetch_size = elements_per_page if remaining is None else min(elements_per_page, remaining)
+            print(f"  Downloading list of acts for {act_type} (Page {current_page}, fetching up to {fetch_size})...")
+            
+            list_payload = {
+                "denominazioneAtto": act_type,
+                "orderType": "recente",
+                "vigenza": EFFECTIVE_DATE,
+                "dataInizioEmanazione": START_DATE_OF_ENACTMENT,
+                "paginazione": {
+                    "paginaCorrente": current_page,
+                    "numeroElementiPerPagina": fetch_size
+                }
             }
-        }
+           
+            try:
+                list_res = session.post(search_url, headers=headers_post, json=list_payload)
+                list_res.raise_for_status()
+                data = list_res.json()
+                page_acts = data.get('listaAtti', [])
+                
+                if not page_acts:
+                    break # No more results
+                    
+                acts.extend(page_acts)
+                
+                # If the server returned fewer results than requested, we've reached the end
+                if len(page_acts) < fetch_size:
+                    break
+                    
+                current_page += 1
+                time.sleep(1) # Courtesy pause between list requests
+                
+            except Exception as e:
+                print(f"Error fetching page {current_page}: {e}")
+                break
        
-        try:
-            list_res = session.post(search_url, headers=headers_post, json=list_payload)
-            list_res.raise_for_status()
-            data = list_res.json()
-            acts = data.get('listaAtti', [])
-        except Exception as e:
-            print(f"Error: {e}")
-            acts = []
-       
-        print(f"Found {len(acts)} documents of type {act_type}.")
+        print(f"Found {len(acts)} total documents of type {act_type} to process.")
        
         for index, act in enumerate(acts):
             try:
