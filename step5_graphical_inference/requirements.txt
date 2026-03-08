@@ -1,0 +1,13 @@
+langchain==0.2.14
+langchain-community==0.2.12
+langchain-huggingface==0.0.3
+chromadb==0.5.5
+sentence-transformers==3.0.1
+pydantic==2.8.2
+streamlit==1.38.0
+pypdf==4.3.1
+pandas==2.2.2
+openpyxl==3.1.5
+unstructured==0.15.5
+tiktoken==0.7.0
+python-multipart==0.0.9

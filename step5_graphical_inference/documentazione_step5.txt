@@ -1,0 +1,53 @@
+Obiettivo dello Step 5: Interfaccia Grafica Chatbot
+
+Lo script `step5_graphical_inference/app.py` fornisce un'interfaccia grafica moderna (stile WhatsApp) per l'interrogazione della banca dati legislativa, sostituendo l'interfaccia da terminale dello Step 4.
+
+L'applicazione utilizza Streamlit per renderizzare nel browser la chat, conservando al contempo le regole di privacy ferree:
+1. Nessun dato esce dal Mac.
+2. Utilizza il database `laws_vector_db` locale.
+3. Utilizza `Ollama` locale per la generazione delle risposte.
+
+L'interfaccia si divide in due modalità operative, selezionabili dalla barra laterale sinistra (Sidebar):
+
+1. **Ricerca Normativa (Leggi)**: (Predefinita)
+   - Interroga le leggi, i codici e le normative di stato contenute nel database vettoriale locale creato nello Step 3.
+   
+2. **Analisi Documenti Privati**:
+   - Permette di caricare dal computer i propri file privati (PDF, CSV, Excel, TXT) come bilanci, visure, o contratti.
+   - Crea un "cervello" temporaneo per l'IA valido solo per la sessione corrente. 
+   - Premi "Elabora Documenti" dopo averli trascinati nell'apposito box.
+   - Le interrogazioni in questa modalità si baseranno ESCLUSIVAMENTE sui documenti appena caricati (utile per estrazione dati, controlli incrociati e sintesi).
+   - Puoi svuotare la memoria temporanea in qualsiasi momento usando il tasto "Pulisci Memoria Documenti".
+
+3. **Analisi Ibrida (Documenti + Leggi)**:
+   - Richiede di aver prima caricato ed elaborato dei documenti privati (come al punto 2).
+   - Permette di fare domande molto approfondite in cui l'IA incrocia i dati del tuo documento (es. bilancio) con le regole imposte dalla normativa istituzionale locale (es. codice civile).
+   - Nella risposta, l'Intelligenza Artificiale preciserà chiaramente da quale delle due fonti ha prelevato le varie informazioni.
+
+### Istruzioni per l'Avvio:
+
+0. **Prerequisito Critico**: L'applicazione **Ollama** deve essere in esecuzione in background sul tuo Mac (con il modello `llama3` installato).
+
+1. Apri un terminale.
+2. Posizionati all'interno della cartella dello Step 5:
+   `cd /Users/massimopettina/Documents/programmmazione/AI_project/AI_professionisti/step5_graphical_inference`
+
+**A. PRIMA ESECUZIONE IN ASSOLUTO (Installazione Iniziale)**
+Se non hai mai avviato lo Step 5 prima d'ora, installa l'ambiente con questo comando:
+   `chmod +x setup_env.sh && ./setup_env.sh`
+
+**B. ESECUZIONI SUCCESSIVE (Avvio Normale)**
+Per avviare l'applicazione in ogni momento successivo:
+   1. Attiva l'ambiente virtuale:
+      `source venv/bin/activate`
+   2. Aggiorna i requisiti (utile se sono state aggiunte nuove funzioni, altrimenti innocuo):
+      `pip install -r requirements.txt`
+   3. Esegui l'applicazione grafica:
+      `streamlit run app.py`
+
+**C. CONCLUSIONE SESSIONE**
+Quando hai finito di usare la chat:
+   - Torna nella finestra del terminale dove sta girando l'applicazione.
+   - Premi `Ctrl+C` per fermare il server Streamlit.
+   - Digita `deactivate` per uscire dall'ambiente virtuale.
+   - *Nota bene: NESSUN documento privato verrà conservato dopo lo spegnimento, a garanzia della massima privacy.*
