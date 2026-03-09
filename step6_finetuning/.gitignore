@@ -1,0 +1,20 @@
+# Cartelle pesanti generate da MLX
+mlx_env/
+adapters/
+commercialista_mlx/
+commercialista_mlx_fp16/
+
+# Repository pesanti scaricate 
+llama.cpp/
+
+# File modello
+*.gguf
+*.safetensors
+
+# Cache Python e macOS
+__pycache__/
+*.pyc
+.DS_Store
+
+# (Opzionale: puoi decommentare sotto se NON vuoi salvare il tuo dataset su GitHub)
+# data/

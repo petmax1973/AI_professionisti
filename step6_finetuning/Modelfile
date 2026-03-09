@@ -1,0 +1,2 @@
+FROM ./commercialista_mlx_fp16
+PARAMETER temperature 0.1
