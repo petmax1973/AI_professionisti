@@ -11,7 +11,7 @@ import zipfile
 EFFECTIVE_DATE = "2026-03-01"
 START_DATE_OF_ENACTMENT = "1972-01-01"
 #MAX_DOCS_PER_TYPE = None # Set to None to download ALL documents via pagination
-MAX_DOCS_PER_TYPE = 5 # Set to None to download ALL documents via pagination
+MAX_DOCS_PER_TYPE = None # Set to None to download ALL documents via pagination
 
 ACT_TYPES = [
     "COSTITUZIONE",
@@ -64,13 +64,6 @@ def download_documents():
     }
    
     session = requests.Session()
-
-    month_translation = {
-        'gennaio': 'january', 'febbraio': 'february', 'marzo': 'march',
-        'aprile': 'april', 'maggio': 'may', 'giugno': 'june',
-        'luglio': 'july', 'agosto': 'august', 'settembre': 'september',
-        'ottobre': 'october', 'novembre': 'november', 'dicembre': 'december'
-    }
 
     for act_type in ACT_TYPES:
         output_dir = os.path.join(base_output_dir, act_type.replace(' ', '_').lower())
@@ -140,8 +133,7 @@ def download_documents():
                 if not day or not month_ita or not enactment_date or not number:
                     continue
                 
-                month_eng = month_translation.get(month_ita.lower(), month_ita.lower())
-                base_name = f"{act_type.lower()}_{day}_{month_eng}_{year}_n_{number}".replace(' ', '_').replace('__', '_')
+                base_name = f"{act_type.lower()}_{day}_{month_ita.lower()}_{year}_n_{number}".replace(' ', '_').replace('__', '_')
                 json_name = os.path.join(output_dir, f"{base_name}.json")
                
                 if os.path.exists(json_name):
