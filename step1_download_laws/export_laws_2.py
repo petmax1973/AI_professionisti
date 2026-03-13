@@ -4,6 +4,8 @@ import time
 import requests
 import io
 import zipfile
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # =========================
 # PARAMETER CONFIGURATION
@@ -64,6 +66,15 @@ def download_documents():
     }
    
     session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=2,
+        status_forcelist=[409, 429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
 
     for act_type in ACT_TYPES:
         output_dir = os.path.join(base_output_dir, act_type.replace(' ', '_').lower())
@@ -199,7 +210,14 @@ def download_documents():
                 time.sleep(1)
                
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"Error processing {title}: {e}")
+                err_str = str(e).lower()
+                # If we get a connection block or 409/429, wait longer to avoid hammering
+                if "connection aborted" in err_str or "connection reset" in err_str or "409 Client Error" in err_str or "429 Client Error" in err_str:
+                    print("Detected possible rate limit or block. Waiting for 30 seconds before retrying...")
+                    time.sleep(30)
+                else:
+                    time.sleep(5)
 
 if __name__ == '__main__':
     download_documents()
