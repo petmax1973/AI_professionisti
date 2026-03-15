@@ -213,7 +213,7 @@ def download_documents():
                 print(f"Error processing {title}: {e}")
                 err_str = str(e).lower()
                 # If we get a connection block or 409/429, wait longer to avoid hammering
-                if "connection aborted" in err_str or "connection reset" in err_str or "409 Client Error" in err_str or "429 Client Error" in err_str:
+                if "connection aborted" in err_str or "connection reset" in err_str or "409" in err_str or "429" in err_str:
                     print("Detected possible rate limit or block. Waiting for 30 seconds before retrying...")
                     time.sleep(30)
                 else:
