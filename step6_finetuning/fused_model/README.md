@@ -206,3 +206,42 @@ extra_gated_description: The information you provide will be collected, stored, 
   and shared in accordance with the [Meta Privacy Policy](https://www.facebook.com/privacy/policy/).
 extra_gated_button_content: Submit
 ---
+
+
+# Llama-3.2-3B-Instruct "Commercialista"
+
+Questo è un modello fine-tuned per replicare lo stile e il ragionamento di un Commercialista e Revisore Contabile italiano.
+
+## Requisiti e Installazione
+
+Il modello può essere eseguito in diversi ambienti hardware. Di seguito le istruzioni divise per tipologia di sistema.
+
+### 1. Installazione Generale (Linux / Windows / Cloud)
+Per eseguire il modello su server cloud, macchine Linux o PC Windows dotati di schede video NVIDIA (es. RTX 3090/4090, A100), si raccomanda l'ecosistema **PyTorch** e **Transformers** di HuggingFace.
+
+* **Requisiti:** GPU NVIDIA con driver CUDA aggiornati (minimo 16GB VRAM consigliati, anche se il modello in formato 4-bit richiede meno memoria per la sola inferenza).
+* **Installazione dell'ambiente:**
+  ```bash
+  python3 -m venv env
+  source env/bin/activate
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+  pip install transformers accelerate bitsandbytes
+  ```
+
+### 2. Installazione Specifica per Sistemi macOS
+Per l'utilizzo su sistemi Mac recenti con chip Apple Silicon (M1, M2, M3, M4 nelle versioni base, Pro, Max o Ultra), l'ambiente più efficiente per eseguire l'inferenza locale è il framework nativo **MLX**. MLX sfrutta al massimo l'architettura a memoria unificata dei Mac.
+
+* **Requisiti:** macOS aggiornato, chip Apple Silicon. Si consigliano macchine con almeno 16GB di memoria unificata per un'esecuzione senza incertezze.
+* **Installazione dell'ambiente:**
+  ```bash
+  python3 -m venv mlx_env
+  source mlx_env/bin/activate
+  pip install mlx-lm
+  ```
+
+### 3. Nota Specifica: MacBook Air M1 (8GB RAM)
+⚠️ **Avvertenza per Mac con 8GB di RAM:** Eseguire questo LLM su una macchina entry-level come il MacBook Air M1 (8GB di memoria unificata e senza ventole) richiede alcune accortezze.
+
+* **Gestione della RAM:** Il modello da ~3B parametri, se tenuto nel formato quantizzato a 4-bit (QLoRA), occuperà circa 2-3GB di memoria all'avvio dell'inferenza. Sebbene stia nominalmente negli 8GB, il sistema operativo (macOS) ha bisogno di RAM per funzionare. Per mantenere una velocità di generazione (token al secondo) accettabile ed evitare il blocco totale del sistema (con conseguente swap pesante su disco SSD), **si raccomanda vivamente di chiudere applicazioni esose** (come tab del browser o software pesanti) prima di interrogare il modello.
+* **Surriscaldamento:** Generare testi lunghi porterà rapidamente il processore sotto sforzo. Essendo l'Air M1 privo di un sistema di dissipazione attivo (ventole), dopo diversi minuti di inferenza continuativa entrerà in *Thermal Throttling*, abbassando le frequenze per dissipare il calore. Questo si tradurrà in un naturale abbassamento della velocità di risposta. Assicurati che il Mac operi in un ambiente areato.
+* **Utilizzo in Ollama:** In alternativa allo script Python MLX, l'integrazione consigliata e più performante su questa specifica macchina è l'utilizzo del motore **Ollama**. Ollama gestisce intelligentemente il caricamento in memoria e ottimizza l'uso della CPU/GPU del M1 in modo trasparente.

@@ -1,91 +1,90 @@
-# Step 6: Fine-Tuning Modello "Commercialista" (100% Locale su Mac M1)
+# Step 6: Fine-Tuning Modello "Commercialista"
 
-Questo documento traccia la strategia e la procedura "step-by-step" per effettuare il fine-tuning di un LLM **esclusivamente in locale** sul tuo Mac M1 (8GB RAM, 8 Core CPU, 7 Core GPU), senza appoggiarsi a server cloud esterni.
-
-L'obiettivo è infondere al modello lo stile, il linguaggio tecnico e il ragionamento deduttivo testuale tipico di un Commercialista e Revisore Contabile italiano, accettando consapevolmente tempistiche di calcolo prolungate dovute allo Swap di sistema.
+Questo documento traccia la strategia e la procedura "step-by-step" per effettuare il fine-tuning di un LLM. L'obiettivo è infondere al modello lo stile, il linguaggio tecnico e il ragionamento deduttivo testuale tipico di un Commercialista e Revisore Contabile italiano.
 
 ---
 
-## 1. Sfide Hardware e Il Framework Apple MLX
-
-Svolgere l'addestramento su una macchina con 8GB di memoria RAM unificata presenta limiti severi, ma **è realizzabile** sfruttando l'ecosistema nativo Apple.
-
-* **Il limite della RAM (8GB):** Durante il training di un modello da 3 miliardi di parametri, gli 8GB fisici si satureranno istantaneamente. macOS inizierà a utilizzare lo "Swap Disk" (memoria virtuale sul disco SSD). Questo eviterà il blocco del PC, ma rallenterà radicalmente l'addestramento (il disco SSD è veloce, ma immensamente più lento della RAM).
-* **Il Framework (Apple MLX):** Dimentichiamo PyTorch o librerie per server Nvidia. Useremo **MLX**, una libreria sviluppata direttamente dal team Machine Learning di Apple. È progettata per estrarre le massime prestazioni dai chip M1/M2/M3 e gestire nel modo più intelligente possibile l'architettura a memoria unificata, includendo il supporto nativo a QLoRA.
-* **Modelli Trattabili:** Il limite logico per addestrare (anche lentamente) con 8GB è un modello **tra 1.5B e 3B parametri**. (Es. `Qwen2.5-1.5B` o `Llama-3.2-3B`).
-* **Tecnica Obbligatoria (QLoRA):** Il modello dovrà essere quantizzato (compresso) a 4-bit in memoria durante il calcolo, e l'addestramento avverrà solo su una piccolissima percentuale dei suoi parametri (LoRA Adapters).
-
----
-
-## 2. Il "Pensiero del Commercialista" (Instruction Tuning)
+## 1. Il "Pensiero del Commercialista" (Instruction Tuning)
 
 Il fine-tuning in questa fase serve per insegnare al modello *come* rispondere, non necessarimente *cosa* sapere a memoria (per quello hai già il tuo sistema RAG). Serve il cosiddetto **Instruction Tuning**.
 
 Viene preparato un *Dataset* (es. 500-1000 domande/risposte) salvato in tre file JSONL: `train.jsonl` (addestramento) e `valid.jsonl` (verifica).
 
-**Esempio di Formato MLX richiesto:**
+---
 
-```json
-{"text": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nSei un Commercialista qualificato.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nHo aperto in regime forfettario. Come gestisco le spese dell'auto?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nEgregio Cliente, la risposta è negativa. Nel Regime Forfettario la determinazione del reddito avviene in via forfettaria (art 1 commi 54-89 L.190/2014)...<|eot_id|>"}
-```
+## 2. Preparazione del Dataset (Generale)
 
-*(Nota: I token `<|start_header_id|>` dipendono dallo specifico modello scelto).*
+1. Usare i documenti Legali (Step 1 e 2).
+2. Scrivere uno script Python che, tramite API o modelli in locale, auto-generi centinaia di finti "Casi Studio cliente-commercialista".
+3. Salvare tutto formattato ad-hoc nei file `data/train.jsonl` e `data/valid.jsonl`.
+4. Revisionare le risposte a mano: lo stile appreso nel testo sarà replicato al 100% dal modello finale.
 
 ---
 
-## 3. Procedura Operativa 100% Mac (Step-by-Step)
+## 3. Requisiti e Installazione
 
-### Fase A: Preparazione del Dataset
+Il fine-tuning richiede risorse computazionali significative. Di seguito le istruzioni in base all'hardware a disposizione:
 
-1. Usare i documenti Legali (Step 1 e 2).
-2. Scrivere uno script Python che, tramite le API di un modello avanzato (es. GPT-4o), auto-generi centinaia di finti "Casi Studio cliente-commercialista".
-3. Salvare tutto formattato ad-hoc nei file `data/train.jsonl` e `data/valid.jsonl`.
-4. Revisionare le risposte a mano: lo stile appreso nel testo sarà replicato al 100% dal tuo modello finale.
+### 3.1 Installazione Generale (Linux / Windows / Cloud)
 
-### Fase B: Installazione Ambiente Apple MLX
+Per server cloud, macchine Linux o PC Windows con schede video NVIDIA (es. RTX 3090, 4090 o GPU Datacenter come le A100/H100), l'approccio standard prevede l'uso dell'ecosistema **PyTorch** e **HuggingFace** (in particolare le librerie `transformers`, `peft` e `trl`).
 
-Aprire il Terminale sul Mac e posizionarsi nella cartella `step6_finetuning`:
+* **Requisiti:** Una GPU NVIDIA con almeno 16-24GB di VRAM per modelli fino a 8B parametri, installazione dei driver CUDA.
+* **Installazione dell'ambiente:**
 
-1. Creare un ambiente virtuale per MLX (consigliato per non sporcare il sistema):
+  ```bash
+  python3 -m venv finetune_env
+  source finetune_env/bin/activate
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+  pip install transformers datasets peft trl accelerate bitsandbytes
+  ```
 
-    ```bash
-    python3 -m venv mlx_env
-    source mlx_env/bin/activate
-    pip install mlx-lm datasets
-    ```
+* **Vantaggi:** Tempi di addestramento ridotti e massimo supporto dalla community AI.
 
-2. Installare la libreria Apple MLX per fine-tuning:
+### 3.2 Installazione Specifica per Sistemi macOS
 
-    ```bash
-    
-    ```
+Se si utilizza un Mac moderno con processore Apple Silicon (M1, M2, M3, M4 - versioni Pro, Max o Ultra) e una buona dotazione di memoria unificata (es. 32GB, 64GB o 128GB), è altamente consigliato utilizzare il framework nativo di Apple: **MLX**. MLX è ottimizzato per sfruttare l'architettura a memoria unificata di Apple.
 
-### Fase C: Avvio del Fine-Tuning QLoRA (Il Calcolo Lungo)
+* **Requisiti:** macOS aggiornato, chip Apple Silicon, memoria unificata in base alle dimensioni del modello (almeno 16-32GB per stare sicuri).
+* **Installazione dell'ambiente:**
 
-L'addestramento vero e proprio avviene tramite un singolo comando da terminale, in cui MLX scarica il modello originale da HuggingFace, lo comprime al volo a 4-bit (QLoRA) e avvia il loop sulla tua GPU (7 Core).
+  ```bash
+  python3 -m venv mlx_env
+  source mlx_env/bin/activate
+  pip install mlx-lm datasets
+  ```
 
-```bash
-mlx_lm.lora \
-  --model mlx-community/Llama-3.2-3B-Instruct-4bit \
-  --train \
-  --data ./data \
-  --iters 400 \
-  --batch-size 1 \
-  --num-layers 4 \
-  --max-seq-length 512
-```
+* **Avvio del Fine-Tuning (Esempio MLX):**
+  Il calcolo avverrà tramite `mlx_lm.lora`, sfruttando tutti i core della GPU integrata.
 
-* **`--model ...-4bit`:** Partiamo direttamente da un modello già preparato a 4-bit per saturare meno memoria all'avvio.
-* **`--batch-size 1`:** Fondamentale per la tua macchina. Un batch size superiore a 1 crasherebbe la RAM da 8GB.
-* **`--iters 400` / `--iters 1000`:** È il numero di cicli di apprendimento. **Portandolo a 400/500 velocizzerai considerevolmente il tempo di calcolo**, ed essendo il tuo dataset da circa 411 esempi per il training, 400 iterazioni sono circa "un'epoca intera" di osservazione (ovvero il modello guarda gli esempi quasi 1 volta ciascuno). Con `--iters 1000` farà più giri consolidando meglio, ma aumenterà i tempi. Ti suggeriamo di partire con `--iters 400` (o `--iters 500`) come primo esperimento.
-* **Rallentamenti attesi e Temperature (MacBook Air):** Data la RAM limitata di 8GB, il disco fisso SSD scriverà continuamente (Swap memory). Essendo il MacBook Air M1 sprovvisto di ventole attive, la scocca in alluminio dissiperà passivamente il calore. C'è la concreta possibilità di "Thermal Throttling": quando il Mac si scalderà, abbasserà volontariamente le frequenze di calcolo per non fondere nulla. Le ore di calcolo stimate si dilateranno ulteriormente man mano che salirà la temperatura. Si raccomanda di tenerlo sollevato e areato.
+### 3.3 Nota Specifica: MacBook Air M1 (8GB RAM)
 
-### Fase D: Fusione dei Pesi (Dequantizzazione FP16)
+**Attenzione alle limitazioni hardware:** Svolgere l'addestramento su una macchina con 8GB di memoria RAM unificata presenta limiti severi, ma **è realizzabile** sfruttando l'ecosistema nativo Apple MLX e accettando *tempistiche di calcolo molto prolungate*.
 
-A fine calcolo, MLX avrà generato una cartella `adapters/` contenente solo la "conoscenza specializzata" del commercialista nel formato LoRA.
-Per poterla usare facilmente nell'ecosistema Ollama aggirando incompatibilità sui formati 4-bit proprietari, la tecnica migliore è fondere il modello decomprimendolo nel formato standard (FP16).
+* **Il limite della RAM (8GB):** Durante il training, gli 8GB fisici si satureranno istantaneamente. macOS inizierà a utilizzare lo "Swap Disk" (memoria virtuale sul disco SSD). Questo eviterà il blocco del PC, ma rallenterà radicalmente l'addestramento. È indispensabile chiudere **tutte le altre applicazioni** (browser inclusi) prima di iniziare.
+* **Modelli Trattabili:** Il limite logico per addestrare è un modello **tra 1.5B e 3B parametri** (Es. `Llama-3.2-3B`), obbligatoriamente quantizzato a 4-bit (QLoRA).
+* **Thermal Throttling:** Il MacBook Air M1 è sprovvisto di ventole attive. Scrivendo continuamente su disco e calcolando per ore, andrà in *Thermal Throttling* (abbasserà le frequenze per non surriscaldarsi), dilatando ulteriormente i tempi. Si raccomanda di tenerlo sollevato e ben areato.
+* **Configurazione Obbligatoria del comando MLX:**
+  Bisogna impostare un `batch-size` estremamente basso, altrimenti il Mac andrà in crash per mancanza di memoria.
 
-Sempre nel terminale di MLX, lancia:
+  ```bash
+  mlx_lm.lora \
+    --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+    --train \
+    --data ./data \
+    --iters 400 \
+    --batch-size 1 \
+    --num-layers 4 \
+    --max-seq-length 512
+  ```
+
+  Partire con `--iters 400` come primo esperimento test. Aggiustare in seguito al rialzo solo in caso di esiti positivi del test.
+
+---
+
+## 4. Fusione dei Pesi (Dequantizzazione FP16) - Solo per ambiente MLX
+
+A fine calcolo, se hai utilizzato MLX, avrai generato una cartella `adapters/` contenente solo la "conoscenza specializzata" del commercialista. Per poterla usare facilmente nell'ecosistema Ollama, bisogna fondere il modello decomprimendolo nel formato standard (FP16).
 
 ```bash
 mlx_lm.fuse \
@@ -95,11 +94,11 @@ mlx_lm.fuse \
   --save-path ./commercialista_mlx_fp16
 ```
 
-Il Mac lavorerà per un paio di minuti sul disco SSD e genererà una nuova cartella `commercialista_mlx_fp16` da circa 6.5 GB con il modello unito e uncompressed.
+Il disco lavorerà per un paio di minuti e genererà una nuova cartella `commercialista_mlx_fp16` da circa 6.5 GB.
 
-### Fase E: Integrazione Auto-Quantizzata su Ollama
+---
 
-Ollama possiede uno strumento eccellente capace di importare intere cartelle salvate in formato FP16, ri-comprimendole chirurgicamente (e velocemente) in `.gguf` Q4 dietro le quinte.
+## 5. Integrazione su Ollama
 
 1. Creare un file testuale chiamato `Modelfile` (nella cartella `step6_finetuning`) con questo contenuto:
 
@@ -114,5 +113,3 @@ Ollama possiede uno strumento eccellente capace di importare intere cartelle sal
     ollama create mio_commercialista -f Modelfile
     ollama run mio_commercialista
     ```
-
-In questo modo avrai svolto **tutta l'operazione in maniera del tutto offline, sicura e in locale sul tuo Mac M1**.
