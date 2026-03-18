@@ -12,13 +12,13 @@ python3 -m venv venv
 echo "2. Activating the virtual environment..."
 source venv/bin/activate
 
-echo "3. Installing required libraries (requests)..."
+echo "3. Installing required libraries..."
 pip install --upgrade pip
-pip install requests==2.32.5
+pip install -r requirements.txt
 
 echo ""
 echo "=========================================="
 echo "Environment ready! To start downloading laws, run:"
 echo "source venv/bin/activate"
-echo "python export_laws_2.py"
+echo "python scraping_data.py"
 echo "=========================================="

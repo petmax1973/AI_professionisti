@@ -29,8 +29,9 @@ test_env/
 # PROJECT SPECIFIC IGNORES
 # ==========================================
 
-# Step 1: Downloaded data (keep the script, ignore the heavy raw JSONs)
+# Step 1: Downloaded data (keep the script, ignore the heavy raw data)
 step1_download_laws/documents_collection/
+step1_download_laws/archivio_agenzia_entrate/
 
 # Step 2: Generated multi-GB datasets
 step2_preprocessing/accountant_rag_dataset/

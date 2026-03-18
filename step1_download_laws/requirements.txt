@@ -2,4 +2,6 @@ certifi==2026.2.25
 charset-normalizer==3.4.5
 idna==3.11
 requests==2.32.5
+selenium>=4.27.0
 urllib3==2.6.3
+webdriver-manager>=4.0.0
