@@ -16,19 +16,28 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # --- CONFIGURAZIONE ---
 DOMAIN = "https://www.agenziaentrate.gov.it"
-START_URL = f"{DOMAIN}/portale/web/guest/normativa-e-prassi"
+
+# Punti di partenza multipli per coprire sia la sezione corrente che l'archivio
+START_URLS = [
+    f"{DOMAIN}/portale/web/guest/normativa-e-prassi",
+    f"{DOMAIN}/portale/archivio/normativa-prassi-archivio-documentazione",
+]
 
 # Sezioni del sito da esplorare (prefissi URL da seguire)
 ALLOWED_PREFIXES = [
     f"{DOMAIN}/portale/normativa-e-prassi",
     f"{DOMAIN}/portale/web/guest/normativa-e-prassi",
     f"{DOMAIN}/portale/web/guest/archivio/normativa-prassi",
+    f"{DOMAIN}/portale/archivio/normativa-prassi-archivio-documentazione",
+    f"{DOMAIN}/mt/",
 ]
 
 DOWNLOAD_BASE_DIR = "archivio_agenzia_entrate"
 WAIT_BETWEEN_DOWNLOADS = 10  # Secondi di attesa tra un download e l'altro
 PAGE_LOAD_TIMEOUT = 15       # Secondi max di attesa per il caricamento della pagina
 MAX_DEPTH = 50               # Profondità massima di navigazione
+MAX_DOWNLOAD_RETRIES = 3     # Tentativi max per download singolo file
+MAX_SCAN_RETRIES = 2         # Tentativi max per scansione pagina
 # ----------------------
 
 # Estensioni di documenti da scaricare
@@ -125,7 +134,10 @@ def get_local_folder(file_url):
 
 
 def download_file(file_url):
-    """Scarica il file fisico mantenendo la struttura delle cartelle."""
+    """Scarica il file fisico mantenendo la struttura delle cartelle.
+
+    Include un meccanismo di retry con backoff esponenziale.
+    """
     local_folder = get_local_folder(file_url)
     os.makedirs(local_folder, exist_ok=True)
 
@@ -140,23 +152,40 @@ def download_file(file_url):
         logger.info("[SKIP] File già presente: %s", file_name)
         return
 
-    try:
-        logger.info("[DOWNLOAD] Scaricando: %s ...", file_name)
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        response = requests.get(file_url, headers=headers, timeout=30)
-        response.raise_for_status()
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-        with open(full_local_path, "wb") as f:
-            f.write(response.content)
+    for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            logger.info("[DOWNLOAD] Scaricando: %s (tentativo %d/%d) ...",
+                        file_name, attempt, MAX_DOWNLOAD_RETRIES)
+            response = requests.get(file_url, headers=headers, timeout=60)
+            response.raise_for_status()
 
-        logger.info("[OK] Salvato in: %s (%d bytes)", full_local_path, len(response.content))
-        logger.info("[WAIT] Attesa di %d secondi...", WAIT_BETWEEN_DOWNLOADS)
-        time.sleep(WAIT_BETWEEN_DOWNLOADS)
+            with open(full_local_path, "wb") as f:
+                f.write(response.content)
 
-    except requests.exceptions.HTTPError as e:
-        logger.error("[ERRORE HTTP] %s — Status: %s", file_url, e.response.status_code)
-    except Exception as e:
-        logger.error("[ERRORE] Download fallito per %s: %s", file_url, e)
+            logger.info("[OK] Salvato in: %s (%d bytes)",
+                        full_local_path, len(response.content))
+            logger.info("[WAIT] Attesa di %d secondi...", WAIT_BETWEEN_DOWNLOADS)
+            time.sleep(WAIT_BETWEEN_DOWNLOADS)
+            return  # Download riuscito, esci
+
+        except requests.exceptions.HTTPError as e:
+            logger.error("[ERRORE HTTP] %s — Status: %s",
+                         file_url, e.response.status_code)
+            return  # Errore HTTP non recuperabile, non ritentare
+        except Exception as e:
+            wait_time = WAIT_BETWEEN_DOWNLOADS * (2 ** (attempt - 1))
+            if attempt < MAX_DOWNLOAD_RETRIES:
+                logger.warning("[RETRY] Download fallito per %s: %s — "
+                               "Ritento tra %d secondi (tentativo %d/%d)",
+                               file_url, e, wait_time, attempt,
+                               MAX_DOWNLOAD_RETRIES)
+                time.sleep(wait_time)
+            else:
+                logger.error("[ERRORE] Download fallito definitivamente "
+                             "per %s dopo %d tentativi: %s",
+                             file_url, MAX_DOWNLOAD_RETRIES, e)
 
 
 def is_allowed_url(url):
@@ -164,11 +193,16 @@ def is_allowed_url(url):
     return any(url.startswith(prefix) for prefix in ALLOWED_PREFIXES)
 
 
-def crawl(driver, start_url):
-    """Naviga iterativamente nelle pagine usando una coda (BFS)."""
+def crawl(driver, start_urls):
+    """Naviga iterativamente nelle pagine usando una coda (BFS).
+
+    Accetta una lista di URL di partenza e include un meccanismo
+    di retry per la scansione delle pagine.
+    """
     visited_urls = set()
     queue = deque()
-    queue.append((start_url, 0))
+    for url in start_urls:
+        queue.append((url, 0))
     download_count = 0
 
     while queue:
@@ -185,35 +219,53 @@ def crawl(driver, start_url):
         logger.info("[SCAN] (depth=%d, queue=%d, downloaded=%d) Esaminando: %s",
                      depth, len(queue), download_count, url)
 
-        try:
-            driver.get(url)
-            WebDriverWait(driver, PAGE_LOAD_TIMEOUT).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+        found_links = []
+        scan_success = False
 
-            elements = driver.find_elements(By.TAG_NAME, "a")
-            found_links = [
-                el.get_attribute("href")
-                for el in elements
-                if el.get_attribute("href")
-            ]
+        for attempt in range(1, MAX_SCAN_RETRIES + 1):
+            try:
+                driver.get(url)
+                WebDriverWait(driver, PAGE_LOAD_TIMEOUT).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
 
-            for link in set(found_links):
-                full_url = urljoin(url, link)
+                elements = driver.find_elements(By.TAG_NAME, "a")
+                found_links = [
+                    el.get_attribute("href")
+                    for el in elements
+                    if el.get_attribute("href")
+                ]
+                scan_success = True
+                break  # Scansione riuscita, esci dal retry
 
-                # Se è un documento scaricabile, lo scarica
-                if is_document_url(full_url):
-                    download_file(full_url)
-                    download_count += 1
-
-                # Se è una sottopagina nelle sezioni consentite, la aggiunge alla coda
+            except Exception as e:
+                if attempt < MAX_SCAN_RETRIES:
+                    logger.warning(
+                        "[RETRY SCAN] Errore scansione %s: %s — "
+                        "Ritento (tentativo %d/%d)",
+                        url, e, attempt, MAX_SCAN_RETRIES)
+                    time.sleep(5)
                 else:
-                    clean_url = normalize_url(full_url)
-                    if is_allowed_url(clean_url) and clean_url not in visited_urls:
-                        queue.append((clean_url, depth + 1))
+                    logger.error(
+                        "[ERRORE] Impossibile scansionare %s dopo %d "
+                        "tentativi: %s", url, MAX_SCAN_RETRIES, e)
 
-        except Exception as e:
-            logger.error("[ERRORE] Impossibile scansionare %s: %s", url, e)
+        if not scan_success:
+            continue
+
+        for link in set(found_links):
+            full_url = urljoin(url, link)
+
+            # Se è un documento scaricabile, lo scarica
+            if is_document_url(full_url):
+                download_file(full_url)
+                download_count += 1
+
+            # Se è una sottopagina nelle sezioni consentite, la aggiunge alla coda
+            else:
+                clean_url = normalize_url(full_url)
+                if is_allowed_url(clean_url) and clean_url not in visited_urls:
+                    queue.append((clean_url, depth + 1))
 
     logger.info("[COMPLETATO] Pagine visitate: %d, Documenti scaricati: %d",
                 len(visited_urls), download_count)
@@ -222,8 +274,9 @@ def crawl(driver, start_url):
 if __name__ == "__main__":
     driver = create_driver()
     try:
-        logger.info("Inizio scansione iterativa. Premere CTRL+C per interrompere.")
-        crawl(driver, START_URL)
+        logger.info("Inizio scansione iterativa con %d URL di partenza. "
+                    "Premere CTRL+C per interrompere.", len(START_URLS))
+        crawl(driver, START_URLS)
     except KeyboardInterrupt:
         logger.info("[STOP] Interrotto dall'utente.")
     finally:
