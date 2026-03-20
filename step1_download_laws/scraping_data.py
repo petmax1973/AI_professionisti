@@ -19,20 +19,18 @@ DOMAIN = "https://www.agenziaentrate.gov.it"
 
 # Punti di partenza multipli per coprire sia la sezione corrente che l'archivio
 START_URLS = [
-    f"{DOMAIN}/portale/web/guest/normativa-e-prassi",
-    f"{DOMAIN}/portale/archivio/normativa-prassi-archivio-documentazione",
+    f"{DOMAIN}/portale/web/guest/archivio/normativa-prassi-archivio-documentazione/provvedimenti/provvedimenti-soggetti",
+    f"{DOMAIN}/portale/web/guest/normativa-e-prassi/circolari/archivio-circolari",
+    f"{DOMAIN}/portale/web/guest/normativa-e-prassi/risoluzioni/archivio-risoluzioni",
+    f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/interpelli/archivio-interpelli",
+    f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/risposte-alle-istanze-di-consulenza-giuridica/archivio-risposte-alle-istanze-di-consulenza-giuridica",
 ]
 
 # Sezioni del sito da esplorare (prefissi URL da seguire)
-ALLOWED_PREFIXES = [
-    f"{DOMAIN}/portale/normativa-e-prassi",
-    f"{DOMAIN}/portale/web/guest/normativa-e-prassi",
-    f"{DOMAIN}/portale/web/guest/archivio/normativa-prassi",
-    f"{DOMAIN}/portale/archivio/normativa-prassi-archivio-documentazione",
-    f"{DOMAIN}/mt/",
-]
+ALLOWED_PREFIXES = START_URLS.copy()
 
-DOWNLOAD_BASE_DIR = "archivio_agenzia_entrate"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_BASE_DIR = os.path.join(SCRIPT_DIR, "archivio_agenzia_entrate")
 WAIT_BETWEEN_DOWNLOADS = 10  # Secondi di attesa tra un download e l'altro
 PAGE_LOAD_TIMEOUT = 15       # Secondi max di attesa per il caricamento della pagina
 MAX_DEPTH = 50               # Profondità massima di navigazione
@@ -112,33 +110,22 @@ def extract_filename_from_url(url):
     return segments[-1] if segments[-1] else None
 
 
-def get_local_folder(file_url):
-    """Determina la cartella locale per salvare un file dato il suo URL.
+def get_local_folder(page_url):
+    """Determina la cartella locale per salvare un file basata sull'URL della pagina.
 
-    Rimuove dal path il segmento che contiene l'estensione del documento
-    e tutti i segmenti successivi (es. UUID), così da non creare cartelle
-    spurie con il nome del file.
+    I nomi delle cartelle coincidono con la struttura del percorso del sito web.
     """
-    parsed = urlparse(file_url)
-    segments = parsed.path.strip("/").split("/")
-
-    # Trova il primo segmento che contiene un'estensione nota e tronca lì
-    clean_segments = []
-    for seg in segments:
-        if any(ext in seg.lower() for ext in DOWNLOADABLE_EXTENSIONS):
-            break
-        clean_segments.append(seg)
-
-    dir_part = "/".join(clean_segments) if clean_segments else ""
-    return os.path.join(DOWNLOAD_BASE_DIR, dir_part)
+    parsed = urlparse(page_url)
+    path = parsed.path.strip("/")
+    return os.path.join(DOWNLOAD_BASE_DIR, path)
 
 
-def download_file(file_url):
-    """Scarica il file fisico mantenendo la struttura delle cartelle.
+def download_file(file_url, page_url):
+    """Scarica il file fisico mantenendo la struttura delle cartelle del sito.
 
     Include un meccanismo di retry con backoff esponenziale.
     """
-    local_folder = get_local_folder(file_url)
+    local_folder = get_local_folder(page_url)
     os.makedirs(local_folder, exist_ok=True)
 
     file_name = extract_filename_from_url(file_url)
@@ -258,7 +245,7 @@ def crawl(driver, start_urls):
 
             # Se è un documento scaricabile, lo scarica
             if is_document_url(full_url):
-                download_file(full_url)
+                download_file(full_url, url)
                 download_count += 1
 
             # Se è una sottopagina nelle sezioni consentite, la aggiunge alla coda
