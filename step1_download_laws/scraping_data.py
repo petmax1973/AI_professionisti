@@ -27,7 +27,11 @@ START_URLS = [
 ]
 
 # Sezioni del sito da esplorare (prefissi URL da seguire)
-ALLOWED_PREFIXES = START_URLS.copy()
+ALLOWED_PREFIXES = []
+for url in START_URLS:
+    ALLOWED_PREFIXES.append(url)
+    if "/web/guest/" in url:
+        ALLOWED_PREFIXES.append(url.replace("/web/guest/", "/"))
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_BASE_DIR = os.path.join(SCRIPT_DIR, "archivio_agenzia_entrate")
