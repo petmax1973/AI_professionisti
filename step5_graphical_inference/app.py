@@ -1,15 +1,49 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message=".*urllib3.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*urllib3.*")
+if hasattr(warnings, 'DependencyWarning'):
+    warnings.filterwarnings("ignore", category=DependencyWarning, module="requests")
+try:
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+except Exception:
+    pass
+
 import os
 import sys
+
+# Previene l'errore di torch.classes disabilitando il file watcher di Streamlit per questo script
+os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
+
 import streamlit as st
+import psutil
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+st.set_page_config(
+    page_title="Assistente Commercialista AI",
+    page_icon="⚖️",
+    layout="centered",
+    initial_sidebar_state="expanded",
+)
 
 # Disabilita completamente la telemetria di ChromaDB per rispetto della Privacy e del GDPR
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 # Suppress parallelism warnings from Huggingface Tokenizers
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM as Ollama
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message=".*urllib3.*")
+# from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 
@@ -25,18 +59,14 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "../step3_ingestion/laws_vector_db")
 
 EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
-LLM_MODEL_NAME = "llama3"
+LLM_MODEL_NAME = "llama3:latest"
+# LLM_MODEL_NAME = "test_mlx_import2:latest"
+# LM_STUDIO_BASE_URL = "http://localhost:1234/v1"
 RETRIEVER_K = 4 # Number of law chunks to inject into the LLM logic
 
 # =========================
 # STREAMLIT CONFIGURATION
 # =========================
-st.set_page_config(
-    page_title="Assistente Commercialista AI",
-    page_icon="⚖️",
-    layout="centered",
-    initial_sidebar_state="expanded",
-)
 
 st.title("⚖️ Assistente Commercialista AI")
 st.markdown("Interroga la banca dati legislativa in linguaggio naturale. Nessun dato esce dal tuo Mac.")
@@ -66,7 +96,13 @@ def init_rag_system():
     db = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embeddings)
     retriever = db.as_retriever(search_kwargs={"k": RETRIEVER_K})
     
-    llm = Ollama(model=LLM_MODEL_NAME)
+    llm = Ollama(model=LLM_MODEL_NAME, temperature=0.0)
+    # llm = ChatOpenAI(
+    #     base_url=LM_STUDIO_BASE_URL,
+    #     api_key="lm-studio",  # Chiave fittizia per LM Studio
+    #     model=LLM_MODEL_NAME,
+    #     temperature=0.0
+    # )
     
     # 2. RAG Prompt Construction
     prompt_template = """Sei un severo e precisissimo assistente legale italiano, progettato per affiancare i commercialisti.
@@ -218,6 +254,51 @@ if app_mode in ["📊 Analisi Documenti Privati", "🧠 Analisi Ibrida (Document
         st.rerun()
 
 # =========================
+# MONITORAGGIO SISTEMA
+# =========================
+st.sidebar.markdown("---")
+st.sidebar.header("📈 Stato Sistema")
+
+@st.fragment(run_every="2s")
+def render_system_monitor():
+    cpu_usage = psutil.cpu_percent(interval=None)
+    ram_usage = psutil.virtual_memory().percent
+
+    gpu_mem = "N/D"
+    if torch is not None:
+        try:
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                allocated = torch.mps.current_allocated_memory() / (1024**2)
+                gpu_mem = f"{allocated:.1f} MB"
+            elif torch.cuda.is_available():
+                allocated = torch.cuda.memory_allocated() / (1024**2)
+                gpu_mem = f"{allocated:.1f} MB"
+        except Exception:
+            pass
+
+    gpu_util = "N/D"
+    if sys.platform == "darwin":
+        try:
+            import subprocess, re
+            res = subprocess.check_output(['ioreg', '-l'], text=True)
+            match = re.search(r'"Device Utilization %"=([0-9]+)', res)
+            if match:
+                gpu_util = f"{match.group(1)}%"
+        except Exception:
+            pass
+
+    col1, col2 = st.columns(2)
+    col1.metric("CPU", f"{cpu_usage}%")
+    col2.metric("RAM", f"{ram_usage}%")
+    
+    col3, col4 = st.columns(2)
+    col3.metric("GPU Uso", gpu_util)
+    col4.metric("GPU Mem", gpu_mem)
+
+with st.sidebar:
+    render_system_monitor()
+
+# =========================
 # CHAT INTERFACE
 # =========================
 # Initialize chat history in session state
@@ -325,6 +406,6 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                     "sources": sources_list
                 })
             except Exception as e:
-                error_msg = f"❌ Errore critico: `{e}`. Assicurati che Ollama sia in esecuzione (modello: {LLM_MODEL_NAME})."
+                error_msg = f"❌ Errore critico: `{e}`. Assicurati che Ollama sia in esecuzione e che il modello `{LLM_MODEL_NAME}` sia installato."
                 st.error(error_msg)
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})

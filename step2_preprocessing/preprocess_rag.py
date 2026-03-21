@@ -47,7 +47,7 @@ def extract_articles_recursive(elements, law_heading, extracted_articles):
                 article_text = article_text.strip()
                 
             # Combines the rubric (article title) with the text if it exists
-            final_text = article_text
+            final_text = article_text or ""
             if rubric:
                 final_text = f"Rubric: {rubric}\n\n{final_text}"
                 

@@ -45,3 +45,6 @@ step3_ingestion/laws_vector_db/
 
 # Claude/AI Config
 .claude*
+
+# Private documents (bilanci e documenti riservati)
+bilanci/
