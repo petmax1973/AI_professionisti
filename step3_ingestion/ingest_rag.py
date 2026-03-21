@@ -1,5 +1,6 @@
 import os
 import json
+import torch
 
 # Disabilita completamente la telemetria di ChromaDB per rispetto della Privacy e del GDPR
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -17,17 +18,25 @@ CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "laws_vector_db")
 # Free and open-source model with excellent performance in Italian
 EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
 
-def iter_jsonl_documents(filepath):
+def iter_jsonl_documents(filepath, skip: int = 0):
     print(f"Loading data from JSONL file in streaming mode: {filepath} ...")
-    
+    if skip > 0:
+        print(f"Skipping the first {skip} documents...")
+        
     # We use a custom generator reading the file line by line
     # to avoid RAM bottlenecks on huge jsonl files.
     from langchain.schema import Document
     
+    skipped_count = 0
     with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
             if not line.strip():
                 continue
+                
+            if skipped_count < skip:
+                skipped_count += 1
+                continue
+                
             data = json.loads(line)
             
             text = data.get("page_content", "")
@@ -45,7 +54,8 @@ def populate_vector_db():
     try:
         embeddings = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL_NAME,
-            model_kwargs={'device': 'mps'} # Change to 'cpu' if mps is not supported
+            model_kwargs={'device': 'mps'}, # Change to 'cpu' if mps is not supported
+            encode_kwargs={'batch_size': 16}
         )
     except Exception as e:
         print(f"Warning: Initialization on mps failed. Fallback to CPU. Error: {e}")
@@ -61,10 +71,22 @@ def populate_vector_db():
     # We process the generator in batches to avoid bottlenecks or memory issues
     batch_size = 100
     db = None
-    
-    document_iterator = iter_jsonl_documents(DATASET_PATH)
-    batch = []
     total_processed = 0
+    
+    # Check if a database already exists to resume ingestion
+    if os.path.exists(CHROMA_DB_DIR) and os.listdir(CHROMA_DB_DIR):
+        print(f"Found existing database in {CHROMA_DB_DIR}. Resuming...")
+        try:
+            db = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embeddings)
+            total_processed = db._collection.count()
+            print(f"The database already contains {total_processed} documents.")
+        except Exception as e:
+            print(f"Error checking existing document count: {e}. Starting fresh.")
+            db = None
+            total_processed = 0
+            
+    document_iterator = iter_jsonl_documents(DATASET_PATH, skip=total_processed)
+    batch = []
     
     for doc in document_iterator:
         batch.append(doc)
@@ -80,6 +102,9 @@ def populate_vector_db():
                 db.add_documents(batch)
             total_processed += len(batch)
             batch = [] # Free RAM
+            
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
             
     # Process any remaining documents smaller than a full batch
     if batch:
