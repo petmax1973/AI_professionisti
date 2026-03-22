@@ -23,7 +23,10 @@ Download di testi normativi, circolari e documenti da fonti ufficiali (es. API N
 ### [step2_preprocessing](./step2_preprocessing/)
 
 **Preparazione e Chunking (Preprocessing)**
-Pulizia dei testi scaricati (rimozione tag XML/HTML, boilerplate) e suddivisione in blocchi semantici (*Recursive Chunking*) con una determinata sovrapposizione (*overlap*) per mantenere il contesto. Preparazione dei metadati.
+Pulizia dei testi scaricati e suddivisione in blocchi semantici (*Recursive Chunking*) con sovrapposizione (*overlap*) per mantenere il contesto. Preparazione dei metadati. Include due script:
+
+* `preprocess_rag.py` — Elabora i file JSON strutturati scaricati dall'API Normattiva (leggi, decreti, ecc.)
+* `preprocess_agenzia.py` — Elabora i PDF non strutturati dell'Agenzia delle Entrate (circolari, provvedimenti, risoluzioni, interpelli) estraendo il testo con PyMuPDF e applicando chunking semantico.
 
 ### [step3_ingestion](./step3_ingestion/)
 

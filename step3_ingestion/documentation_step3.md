@@ -10,8 +10,8 @@ Questo modello non "legge" le parole, ma le trasforma in vettori semantici (lung
 Inoltre, per garantire massime prestazioni, lo script tenta di sfruttare l'accelerazione hardware della scheda video (`mps` sui chip Apple Silicon M1/M2/M3 o `cuda` su macchine NVIDIA), ripiegando sulla normale CPU (`cpu`) se non disponibile.
 
 2. Lettura del Dataset in Streaming
-Lo script deve elaborare il dataset `dataset_rag_langchain.jsonl` (generato nello Step 2). Invece di caricare l'intero file in memoria RAM (che potrebbe causare blocchi se il file è enorme), utilizza un "Generatore Python" (tramite la funzione `iter_jsonl_documents`).
-Questo approccio permette di leggere il dataset riga per riga costantemente: carica un singolo chunk, estrae il testo e i metadati, lo passa alla fase successiva per la catalogazione ed elimina quello in memoria per fare spazio al successivo.
+Lo script deve elaborare tutti i dataset JSONL generati nello Step 2, contenuti nella cartella `accountant_rag_dataset/` (ad esempio `dataset_rag_langchain.jsonl` per le leggi Normattiva e `dataset_agenzia_langchain.jsonl` per i documenti dell'Agenzia delle Entrate). Lo script scopre automaticamente tutti i file `.jsonl` presenti nella cartella tramite `glob`, concatenandoli in un unico flusso di documenti. Invece di caricare l'intero file in memoria RAM (che potrebbe causare blocchi se il file è enorme), utilizza un "Generatore Python" (tramite la funzione `iter_jsonl_documents` e `combined_document_iterator`).
+Questo approccio permette di leggere i dataset riga per riga costantemente: carica un singolo chunk, estrae il testo e i metadati, lo passa alla fase successiva per la catalogazione ed elimina quello in memoria per fare spazio al successivo. Inoltre, aggiungere nuove fonti di dati in futuro è automatico: basta generare un nuovo file `.jsonl` nella stessa cartella.
 
 3. Vettorializzazione a Blocchi (Batching)
 Una volta letto un frammento, il modello di embedding lo converte in coordinate matematiche. Poiché questa operazione richiede molta potenza di calcolo, lo script organizza il lavoro a blocchi (batch) di 100 documenti alla volta.

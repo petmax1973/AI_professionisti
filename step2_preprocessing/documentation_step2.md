@@ -44,6 +44,44 @@ Perché questa iniezione di testo è fondamentale? Perché quando l'IA leggerà 
 
 ---
 
+## Script 2: `preprocess_agenzia.py` — Preprocessing Documenti Agenzia delle Entrate
+
+Lo script `preprocess_agenzia.py` è il complemento di `preprocess_rag.py`. Mentre quest'ultimo elabora i file JSON strutturati scaricati dall'API di Normattiva, `preprocess_agenzia.py` si occupa dei documenti **non strutturati** (PDF) scaricati dal sito dell'Agenzia delle Entrate dallo script `scraping_data.py` dello Step 1.
+
+### Come funziona lo script passo per passo
+
+1. **Scansione ricorsiva dei PDF** — Lo script cerca ricorsivamente tutti i file `.pdf` e `.PDF` nella cartella `step1_download_laws/archivio_agenzia_entrate/`, elaborandoli uno alla volta in streaming per mantenere basso il consumo di RAM.
+
+2. **Estrazione testo con PyMuPDF** — Utilizza la libreria `PyMuPDF` (`fitz`) per estrarre il testo grezzo pagina per pagina da ciascun PDF. I documenti gestiti includono Circolari, Provvedimenti, Risoluzioni e Risposte agli Interpelli.
+
+3. **Sanitizzazione del testo** — I PDF dell'Agenzia delle Entrate contengono spesso caratteri di controllo (form-feed, NUL, vertical-tab) ereditati dalla digitalizzazione. La funzione `sanitize_text()` li rimuove automaticamente, garantendo che il JSON generato sia sempre valido.
+
+4. **Chunking semantico** — A differenza dei JSON di Normattiva (che hanno una struttura naturale ad "articoli"), i PDF sono testi lunghi e continui. Lo script utilizza il `RecursiveCharacterTextSplitter` di LangChain per suddividerli in frammenti di **1500 caratteri** con una sovrapposizione (**overlap**) di **150 caratteri**, evitando che concetti vengano troncati a metà frase.
+
+5. **Estrazione metadati dal nome file** — Poiché i PDF non contengono metadati strutturati, lo script ricostruisce tipo di atto, numero e anno tramite analisi Regex del nome del file (es. `Circolare+n+7+del+9+aprile+2019_Circolare+N.+7_09042019.pdf`).
+
+6. **Arricchimento dei chunk** — Come fa `preprocess_rag.py`, ogni frammento viene arricchito con una testata testuale che inietta i metadati direttamente nel `page_content` (es. `"Reference: Circolare N. 7 del 2019"`), migliorando la precisione delle risposte del RAG.
+
+7. **Output JSONL** — Il risultato viene salvato in `accountant_rag_dataset/dataset_agenzia_langchain.jsonl`, con lo **stesso identico schema** (`metadata` + `page_content`) utilizzato da `preprocess_rag.py`. Questo garantisce piena compatibilità con lo Step 3 (Ingestion).
+
+### Dipendenze
+
+Questo script richiede due librerie aggiuntive, da installare nel venv dello Step 3:
+
+```bash
+pip install PyMuPDF langchain-text-splitters
+```
+
+### Output
+
+```text
+step2_preprocessing/accountant_rag_dataset/
+├── dataset_rag_langchain.jsonl       ← Leggi da Normattiva (Step 2 originale)
+└── dataset_agenzia_langchain.jsonl   ← Documenti Agenzia delle Entrate (nuovo)
+```
+
+---
+
 Come Eseguire lo Script `preprocess_rag.py` (Requisiti e Installazione):
 
 Questo script utilizza esclusivamente le librerie standard di Python (`json`, `os`, `glob`), quindi non richiede l'installazione di librerie esterne tramite `pip`. È un processo "puro" e nativo.

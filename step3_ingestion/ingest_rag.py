@@ -1,5 +1,6 @@
 import os
 import json
+import glob
 import torch
 
 # Disabilita completamente la telemetria di ChromaDB per rispetto della Privacy e del GDPR
@@ -10,8 +11,8 @@ from langchain_community.vectorstores import Chroma
 
 # Path configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# The jsonl file created in step 2
-DATASET_PATH = os.path.join(SCRIPT_DIR, "../step2_preprocessing/accountant_rag_dataset/dataset_rag_langchain.jsonl")
+# The directory containing the jsonl files created in step 2
+DATASETS_DIR = os.path.join(SCRIPT_DIR, "../step2_preprocessing/accountant_rag_dataset")
 # Where we will save the vector database
 CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "laws_vector_db")
 
@@ -84,8 +85,25 @@ def populate_vector_db():
             print(f"Error checking existing document count: {e}. Starting fresh.")
             db = None
             total_processed = 0
-            
-    document_iterator = iter_jsonl_documents(DATASET_PATH, skip=total_processed)
+
+    # Discover all JSONL files in the dataset directory
+    jsonl_files = sorted(glob.glob(os.path.join(DATASETS_DIR, "*.jsonl")))
+    if not jsonl_files:
+        print(f"Warning: No .jsonl files found in {DATASETS_DIR}")
+        return
+    print(f"Found {len(jsonl_files)} dataset file(s): {[os.path.basename(f) for f in jsonl_files]}")
+
+    # Generator that chains all JSONL files together, respecting resume skip
+    def combined_document_iterator(files, skip_total):
+        skipped = 0
+        for fpath in files:
+            for doc in iter_jsonl_documents(fpath, skip=0):
+                if skipped < skip_total:
+                    skipped += 1
+                    continue
+                yield doc
+
+    document_iterator = combined_document_iterator(jsonl_files, total_processed)
     batch = []
     
     for doc in document_iterator:
