@@ -18,12 +18,53 @@ from webdriver_manager.chrome import ChromeDriverManager
 DOMAIN = "https://www.agenziaentrate.gov.it"
 
 # Punti di partenza multipli per coprire sia la sezione corrente che l'archivio
+# --- ARCHIVIO STORICO (fino al 2019) ---
 START_URLS = [
     f"{DOMAIN}/portale/web/guest/archivio/normativa-prassi-archivio-documentazione/provvedimenti/provvedimenti-soggetti",
     f"{DOMAIN}/portale/web/guest/normativa-e-prassi/circolari/archivio-circolari",
     f"{DOMAIN}/portale/web/guest/normativa-e-prassi/risoluzioni/archivio-risoluzioni",
     f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/interpelli/archivio-interpelli",
     f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/risposte-alle-istanze-di-consulenza-giuridica/archivio-risposte-alle-istanze-di-consulenza-giuridica",
+    # --- PROVVEDIMENTI 2020-2026 ---
+    f"{DOMAIN}/portale/normativa-e-prassi/provvedimenti/2020",
+    f"{DOMAIN}/portale/22160",                                                       # 2021
+    f"{DOMAIN}/portale/25663",                                                       # 2022
+    f"{DOMAIN}/portale/28477",                                                       # 2023
+    f"{DOMAIN}/portale/31638",                                                       # 2024
+    f"{DOMAIN}/portale/2025-provvedimenti-del-direttore-soggetti-a-pubblicita",      # 2025
+    f"{DOMAIN}/portale/2026-provvedimenti-del-direttore-soggetti-a-pubblicit%C3%A0", # 2026
+    # --- CIRCOLARI 2020-2026 ---
+    f"{DOMAIN}/portale/normativa-e-prassi/circolari/archivio-circolari/circolari-2020",
+    f"{DOMAIN}/portale/circolari-2021",
+    f"{DOMAIN}/portale/circolari-2022",
+    f"{DOMAIN}/portale/circolari-2023",
+    f"{DOMAIN}/portale/circolari-2024",
+    f"{DOMAIN}/portale/circolari-2025",
+    f"{DOMAIN}/portale/circolari-2026",
+    # --- RISOLUZIONI 2020-2026 ---
+    f"{DOMAIN}/portale/normativa-e-prassi/risoluzioni/archivio-risoluzioni/risoluzioni-2020",
+    f"{DOMAIN}/portale/risoluzioni-2021",
+    f"{DOMAIN}/portale/risoluzioni-2022",
+    f"{DOMAIN}/portale/risoluzioni-2023",
+    f"{DOMAIN}/portale/risoluzioni-2024",
+    f"{DOMAIN}/portale/risoluzioni-2025",
+    f"{DOMAIN}/portale/risoluzioni-2026",
+    # --- INTERPELLI 2020-2026 ---
+    f"{DOMAIN}/portale/interpelli-2020",
+    f"{DOMAIN}/portale/interpelli-2021",
+    f"{DOMAIN}/portale/interpelli-2022",
+    f"{DOMAIN}/portale/interpelli-2023",
+    f"{DOMAIN}/portale/interpelli-2024",
+    f"{DOMAIN}/portale/interpelli-2025",
+    f"{DOMAIN}/portale/interpelli-2026",
+    # --- CONSULENZA GIURIDICA 2020-2026 ---
+    f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-2020",
+    f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-2021",
+    f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-anno-2022",
+    f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-anno-2023",
+    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2024",
+    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2025",
+    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2026",
 ]
 
 # Sezioni del sito da esplorare (prefissi URL da seguire)
@@ -32,6 +73,24 @@ for url in START_URLS:
     ALLOWED_PREFIXES.append(url)
     if "/web/guest/" in url:
         ALLOWED_PREFIXES.append(url.replace("/web/guest/", "/"))
+
+# Pattern keyword per le pagine 2020-2026 (struttura URL piatta)
+# Le sottopagine mensili usano path come /portale/gennaio-2021-provvedimenti
+# e le pagine di dettaglio usano /portale/-/provvedimento-del-...
+ALLOWED_KEYWORDS_2020 = [
+    # Provvedimenti: sottopagine mensili e dettaglio
+    "-provvedimenti", "provvedimento-del-", "provvedimenti-del-direttore",
+    # Circolari: sottopagine mensili e dettaglio
+    "-circolari", "circolare-", "circolari-20",
+    # Risoluzioni: sottopagine mensili e dettaglio
+    "-risoluzioni", "risoluzione-", "risoluzioni-20",
+    # Interpelli: sottopagine mensili e dettaglio
+    "interpelli-20", "interpello-",
+    # Consulenza giuridica: sottopagine e dettaglio
+    "consulenza-giuridica",
+]
+# Anni validi per i keyword match (evita match su pagine non pertinenti)
+VALID_YEARS = [str(y) for y in range(2020, 2027)]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_BASE_DIR = os.path.join(SCRIPT_DIR, "archivio_agenzia_entrate")
@@ -180,8 +239,27 @@ def download_file(file_url, page_url):
 
 
 def is_allowed_url(url):
-    """Verifica se un URL rientra nelle sezioni che si vogliono esplorare."""
-    return any(url.startswith(prefix) for prefix in ALLOWED_PREFIXES)
+    """Verifica se un URL rientra nelle sezioni che si vogliono esplorare.
+
+    Usa due strategie:
+    1. Prefix matching per gli archivi storici (fino al 2019)
+    2. Keyword matching per le pagine 2020-2026 (struttura URL piatta)
+    """
+    # Controllo classico per prefisso (archivio storico)
+    if any(url.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        return True
+
+    # Controllo per keyword + anno (pagine 2020-2026 con URL piatti)
+    # Es: /portale/gennaio-2021-provvedimenti, /portale/-/circolare-del-...
+    url_lower = url.lower()
+    if f"{DOMAIN}/portale/" in url_lower:
+        path_part = url_lower.split(f"{DOMAIN.lower()}/portale/")[-1]
+        has_keyword = any(kw in path_part for kw in ALLOWED_KEYWORDS_2020)
+        has_year = any(year in path_part for year in VALID_YEARS)
+        if has_keyword and has_year:
+            return True
+
+    return False
 
 
 def crawl(driver, start_urls):
