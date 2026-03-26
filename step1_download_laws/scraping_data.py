@@ -3,6 +3,7 @@ import os
 import time
 import logging
 from collections import deque
+from datetime import datetime
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
@@ -17,64 +18,76 @@ from webdriver_manager.chrome import ChromeDriverManager
 # --- CONFIGURAZIONE ---
 DOMAIN = "https://www.agenziaentrate.gov.it"
 
-# Punti di partenza multipli per coprire sia la sezione corrente che l'archivio
-# --- ARCHIVIO STORICO (fino al 2019) ---
+# Anno corrente calcolato dinamicamente: lo script si aggiorna automaticamente
+# ogni anno senza modifiche manuali.
+CURRENT_YEAR = datetime.now().year
+
+# Punti di partenza multipli per coprire sia la sezione corrente che l'archivio.
+# Gli URL degli anni 2020-currentYear vengono generati automaticamente.
 START_URLS = [
+    # --- ARCHIVIO STORICO (struttura gerarchica) ---
     f"{DOMAIN}/portale/web/guest/archivio/normativa-prassi-archivio-documentazione/provvedimenti/provvedimenti-soggetti",
     f"{DOMAIN}/portale/web/guest/normativa-e-prassi/circolari/archivio-circolari",
     f"{DOMAIN}/portale/web/guest/normativa-e-prassi/risoluzioni/archivio-risoluzioni",
     f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/interpelli/archivio-interpelli",
     f"{DOMAIN}/portale/normativa-e-prassi/risposte-agli-interpelli/risposte-alle-istanze-di-consulenza-giuridica/archivio-risposte-alle-istanze-di-consulenza-giuridica",
-    # --- PROVVEDIMENTI 2020-2026 ---
+    # --- PROVVEDIMENTI 2017-2019 (path gerarchico separato, non coperto dall'archivio) ---
+    f"{DOMAIN}/portale/normativa-e-prassi/provvedimenti/2017",
+    f"{DOMAIN}/portale/normativa-e-prassi/provvedimenti/2018",
+    f"{DOMAIN}/portale/normativa-e-prassi/provvedimenti/2019",
+    # --- PROVVEDIMENTI 2020 (struttura con sottocartella) ---
     f"{DOMAIN}/portale/normativa-e-prassi/provvedimenti/2020",
-    f"{DOMAIN}/portale/22160",                                                       # 2021
-    f"{DOMAIN}/portale/25663",                                                       # 2022
-    f"{DOMAIN}/portale/28477",                                                       # 2023
-    f"{DOMAIN}/portale/31638",                                                       # 2024
-    f"{DOMAIN}/portale/2025-provvedimenti-del-direttore-soggetti-a-pubblicita",      # 2025
-    f"{DOMAIN}/portale/2026-provvedimenti-del-direttore-soggetti-a-pubblicit%C3%A0", # 2026
-    # --- CIRCOLARI 2020-2026 ---
+    # --- PROVVEDIMENTI 2021-2024 (URL opaci con ID Liferay) ---
+    f"{DOMAIN}/portale/22160",   # 2021
+    f"{DOMAIN}/portale/25663",   # 2022
+    f"{DOMAIN}/portale/28477",   # 2023
+    f"{DOMAIN}/portale/31638",   # 2024
+    # --- PROVVEDIMENTI 2025+ (URL slug per anno, generati automaticamente) ---
+    *[
+        f"{DOMAIN}/portale/{y}-provvedimenti-del-direttore-soggetti-a-pubblicita"
+        for y in range(2025, CURRENT_YEAR + 1)
+    ],
+    # --- CIRCOLARI 2020 (struttura gerarchica) ---
     f"{DOMAIN}/portale/normativa-e-prassi/circolari/archivio-circolari/circolari-2020",
-    f"{DOMAIN}/portale/circolari-2021",
-    f"{DOMAIN}/portale/circolari-2022",
-    f"{DOMAIN}/portale/circolari-2023",
-    f"{DOMAIN}/portale/circolari-2024",
-    f"{DOMAIN}/portale/circolari-2025",
-    f"{DOMAIN}/portale/circolari-2026",
-    # --- RISOLUZIONI 2020-2026 ---
+    # --- CIRCOLARI 2021+ (URL piatto per anno, generati automaticamente) ---
+    *[
+        f"{DOMAIN}/portale/circolari-{y}"
+        for y in range(2021, CURRENT_YEAR + 1)
+    ],
+    # --- RISOLUZIONI 2020 (struttura gerarchica) ---
     f"{DOMAIN}/portale/normativa-e-prassi/risoluzioni/archivio-risoluzioni/risoluzioni-2020",
-    f"{DOMAIN}/portale/risoluzioni-2021",
-    f"{DOMAIN}/portale/risoluzioni-2022",
-    f"{DOMAIN}/portale/risoluzioni-2023",
-    f"{DOMAIN}/portale/risoluzioni-2024",
-    f"{DOMAIN}/portale/risoluzioni-2025",
-    f"{DOMAIN}/portale/risoluzioni-2026",
-    # --- INTERPELLI 2020-2026 ---
-    f"{DOMAIN}/portale/interpelli-2020",
-    f"{DOMAIN}/portale/interpelli-2021",
-    f"{DOMAIN}/portale/interpelli-2022",
-    f"{DOMAIN}/portale/interpelli-2023",
-    f"{DOMAIN}/portale/interpelli-2024",
-    f"{DOMAIN}/portale/interpelli-2025",
-    f"{DOMAIN}/portale/interpelli-2026",
-    # --- CONSULENZA GIURIDICA 2020-2026 ---
+    # --- RISOLUZIONI 2021+ (URL piatto per anno, generati automaticamente) ---
+    *[
+        f"{DOMAIN}/portale/risoluzioni-{y}"
+        for y in range(2021, CURRENT_YEAR + 1)
+    ],
+    # --- INTERPELLI 2020+ (URL piatto per anno, generati automaticamente) ---
+    *[
+        f"{DOMAIN}/portale/interpelli-{y}"
+        for y in range(2020, CURRENT_YEAR + 1)
+    ],
+    # --- CONSULENZA GIURIDICA 2020-2021 (slug diverso) ---
     f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-2020",
     f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-2021",
+    # --- CONSULENZA GIURIDICA 2022-2023 (slug con 'anno-') ---
     f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-anno-2022",
     f"{DOMAIN}/portale/risposte-istanze-consulenza-giuridica-anno-2023",
-    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2024",
-    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2025",
-    f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-2026",
+    # --- CONSULENZA GIURIDICA 2024+ (slug con 'risposte-alle-istanze-di-') ---
+    *[
+        f"{DOMAIN}/portale/risposte-alle-istanze-di-consulenza-giuridica-anno-{y}"
+        for y in range(2024, CURRENT_YEAR + 1)
+    ],
 ]
 
-# Sezioni del sito da esplorare (prefissi URL da seguire)
+# Sezioni del sito da esplorare (prefissi URL da seguire).
+# Per gli URL con /web/guest/ viene aggiunto anche il path senza quel segmento.
 ALLOWED_PREFIXES = []
 for url in START_URLS:
     ALLOWED_PREFIXES.append(url)
     if "/web/guest/" in url:
         ALLOWED_PREFIXES.append(url.replace("/web/guest/", "/"))
 
-# Pattern keyword per le pagine 2020-2026 (struttura URL piatta)
+# Pattern keyword per le pagine con struttura URL piatta (2017+).
 # Le sottopagine mensili usano path come /portale/gennaio-2021-provvedimenti
 # e le pagine di dettaglio usano /portale/-/provvedimento-del-...
 ALLOWED_KEYWORDS_2020 = [
@@ -89,8 +102,9 @@ ALLOWED_KEYWORDS_2020 = [
     # Consulenza giuridica: sottopagine e dettaglio
     "consulenza-giuridica",
 ]
-# Anni validi per i keyword match (evita match su pagine non pertinenti)
-VALID_YEARS = [str(y) for y in range(2020, 2027)]
+# Anni validi per i keyword match: dal 2017 all'anno corrente incluso.
+# Aggiornato automaticamente ogni nuova esecuzione.
+VALID_YEARS = [str(y) for y in range(2017, CURRENT_YEAR + 1)]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_BASE_DIR = os.path.join(SCRIPT_DIR, "archivio_agenzia_entrate")
