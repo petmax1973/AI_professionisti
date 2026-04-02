@@ -109,7 +109,7 @@ def download_documents():
             }
            
             try:
-                list_res = session.post(search_url, headers=headers_post, json=list_payload)
+                list_res = session.post(search_url, headers=headers_post, json=list_payload, timeout=20)
                 list_res.raise_for_status()
                 data = list_res.json()
                 page_acts = data.get('listaAtti', [])
@@ -142,6 +142,7 @@ def download_documents():
                 day = act.get('giornoProvvedimento', '')
                
                 if not day or not month_ita or not enactment_date or not number:
+                    print(f"  Skipping: {title} due to missing metadata (day/month/date/number).")
                     continue
                 
                 base_name = f"{act_type.lower()}_{day}_{month_ita.lower()}_{year}_n_{number}".replace(' ', '_').replace('__', '_')
@@ -168,12 +169,12 @@ def download_documents():
                     }
                 }
                
-                new_res = session.post(new_url, headers=headers_post, json=search_payload)
+                new_res = session.post(new_url, headers=headers_post, json=search_payload, timeout=20)
                 new_res.raise_for_status()
                 token = new_res.text.strip('"').strip()
                
                 confirm_url = 'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca-asincrona/conferma-ricerca'
-                session.put(confirm_url, headers=headers_post, json={"token": token})
+                session.put(confirm_url, headers=headers_post, json={"token": token}, timeout=20)
                
                 status_url = f'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/ricerca-asincrona/check-status/{token}'
                 ready = False
@@ -181,18 +182,19 @@ def download_documents():
                 time.sleep(5)
                
                 while not ready and attempts < 30:
-                    status_res = session.get(status_url, headers=headers_get, allow_redirects=False)
+                    status_res = session.get(status_url, headers=headers_get, allow_redirects=False, timeout=20)
                     if status_res.status_code == 303 or (status_res.status_code == 200 and status_res.json().get('stato') == 3):
                         ready = True
                     else:
-                        time.sleep(4)
+                        time.sleep(3)
                         attempts += 1
                
                 if not ready:
+                    print(f"  Skipping: {title} - Normattiva async search not ready after 30 attempts.")
                     continue
                
                 download_url = f'https://api.normattiva.it/t/normattiva.api/bff-opendata/v1/api/v1/collections/download/collection-asincrona/{token}'
-                download_res = session.get(download_url, headers=headers_get, stream=True)
+                download_res = session.get(download_url, headers=headers_get, stream=True, timeout=20)
                 download_res.raise_for_status()
                
                 zip_in_memory = io.BytesIO()
@@ -215,9 +217,9 @@ def download_documents():
                 # If we get a connection block or 409/429, wait longer to avoid hammering
                 if "connection aborted" in err_str or "connection reset" in err_str or "409" in err_str or "429" in err_str:
                     print("Detected possible rate limit or block. Waiting for 30 seconds before retrying...")
-                    time.sleep(30)
+                    time.sleep(20)
                 else:
-                    time.sleep(5)
+                    time.sleep(3)
 
 if __name__ == '__main__':
     download_documents()
