@@ -178,4 +178,42 @@ Se utilizzi un Mac (Intel o Apple Silicon M1/M2/M3/M4):
 
 - **Come procedere:** Puoi tranquillamente tenere gli script in esecuzione in background sul terminale mentre continui a lavorare col tuo Mac.
 
+### 4. Installazione Specifica per Raspberry Pi (ARM)
+
+Se esegui gli script su un Raspberry Pi (es. per tenerli attivi 24/7):
+
+1. **Installazione dipendenze di sistema**: L'architettura ARM richiede l'installazione manuale del browser Chromium e del relativo driver (necessari per lo scraper dell'Agenzia delle Entrate):
+   ```bash
+   sudo apt-get update
+   sudo apt-get install chromium-browser chromium-chromedriver
+   ```
+   *(Lo script `scraping_data.py` è stato programmato per accorgersi automaticamente di trovarsi su Raspberry Pi e usare queste versioni di sistema anziché cercare di scaricare Chrome da internet).*
+
+2. **Setup dell'ambiente Python**:
+   ```bash
+   cd step1_download_laws
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. **Avvio degli script in background (24/7)**: Per fare in modo che gli script continuino a girare anche dopo aver chiuso la connessione SSH, utilizza il comando `nohup`.
+   
+   Per lo script di Normattiva:
+   ```bash
+   nohup python3 -u export_laws_2.py > nohup_export_laws.out 2>&1 &
+   ```
+   
+   Per lo script dell'Agenzia delle Entrate:
+   ```bash
+   nohup python3 -u scraping_data.py > nohup_scraping.out 2>&1 &
+   ```
+
+   Per controllare lo stato di avanzamento in tempo reale, usa il comando `tail -f`:
+   ```bash
+   tail -f nohup_export_laws.out
+   # oppure
+   tail -f nohup_scraping.out
+   ```
+
 Quando hai finito, se desideri uscire dall'ambiente virtuale su terminale, ti basta digitare il comando `deactivate`.

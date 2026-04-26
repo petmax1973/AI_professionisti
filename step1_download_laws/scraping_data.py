@@ -2,6 +2,7 @@
 import os
 import time
 import logging
+import platform
 from collections import deque
 from datetime import datetime
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -141,8 +142,24 @@ def create_driver():
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     )
+    
+    # Rilevamento ambiente preciso
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # È un Raspberry se il sistema è Linux E l'architettura è ARM
+    is_raspberry = (system == 'linux') and ('arm' in machine or 'aarch64' in machine)
+    
+    if is_raspberry:
+        logger.info("Rilevato ambiente Raspberry Pi (Linux ARM). Uso il driver di sistema.")
+        service = Service('/usr/bin/chromedriver')
+        chrome_options.binary_location = '/usr/bin/chromium-browser'
+    else:
+        logger.info(f"Rilevato ambiente {system.capitalize()} ({machine}). Uso ChromeDriverManager.")
+        service = Service(ChromeDriverManager().install())
+
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
+        service=service,
         options=chrome_options,
     )
     return driver
