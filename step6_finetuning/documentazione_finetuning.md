@@ -33,8 +33,8 @@ Per server cloud, macchine Linux o PC Windows con schede video NVIDIA (es. RTX 3
 * **Installazione dell'ambiente:**
 
   ```bash
-  python3 -m venv finetune_env
-  source finetune_env/bin/activate
+  python3 -m venv venv
+  source venv/bin/activate
   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
   pip install transformers datasets peft trl accelerate bitsandbytes
   ```
@@ -47,10 +47,15 @@ Se si utilizza un Mac moderno con processore Apple Silicon (M1, M2, M3, M4 - ver
 
 * **Requisiti:** macOS aggiornato, chip Apple Silicon, memoria unificata in base alle dimensioni del modello (almeno 16-32GB per stare sicuri).
 * **Installazione dell'ambiente:**
-
+  Per mantenere l'isolamento all'interno di questo step (come nel resto del progetto), puoi eseguire lo script preparato:
   ```bash
-  python3 -m venv mlx_env
-  source mlx_env/bin/activate
+  chmod +x setup_env.sh
+  ./setup_env.sh
+  ```
+  Oppure, se preferisci procedere manualmente:
+  ```bash
+  python3 -m venv venv
+  source venv/bin/activate
   pip install mlx-lm datasets
   ```
 
