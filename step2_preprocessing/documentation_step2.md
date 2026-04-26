@@ -64,12 +64,29 @@ Lo script `preprocess_agenzia.py` è il complemento di `preprocess_rag.py`. Ment
 
 7. **Output JSONL** — Il risultato viene salvato in `accountant_rag_dataset/dataset_agenzia_langchain.jsonl`, con lo **stesso identico schema** (`metadata` + `page_content`) utilizzato da `preprocess_rag.py`. Questo garantisce piena compatibilità con lo Step 3 (Ingestion).
 
-### Dipendenze
+### Dipendenze ed Esecuzione
 
-Questo script richiede due librerie aggiuntive, da installare nel venv dello Step 3:
+Con l'aggiunta dello script per i documenti dell'Agenzia delle Entrate, questo step ora richiede delle librerie esterne. Per mantenere l'isolamento (come negli altri step del progetto), è stato predisposto un virtual environment dedicato all'interno di questa cartella.
+
+Per configurare l'ambiente la prima volta, esegui semplicemente lo script di setup:
 
 ```bash
-pip install PyMuPDF langchain-text-splitters
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+Questo creerà la cartella `venv` locale e installerà `PyMuPDF` e `langchain-text-splitters`.
+
+**Nota bene sull'architettura del progetto**: In questo progetto, *ogni singola cartella (step) ha il proprio ambiente virtuale isolato (`venv`)*. Questo approccio è fondamentale per mantenere le dipendenze pulite e prevenire conflitti tra librerie usate in fasi diverse. Assicurati sempre di configurare e usare il `venv` locale alla cartella in cui ti trovi.
+
+Per eseguire lo script, specialmente se sul tuo Mac usi sistemi come Anaconda/Miniconda che potrebbero creare conflitti di ambiente (mantenendo un ambiente `(base)` sempre attivo), è caldamente consigliato richiamare l'eseguibile Python **direttamente dal venv locale**:
+
+```bash
+# 1. Attiva il virtual environment locale
+source venv/bin/activate
+
+# 2. Lancia lo script forzando esplicitamente l'uso del Python locale
+venv/bin/python3 preprocess_agenzia.py
 ```
 
 ### Output
