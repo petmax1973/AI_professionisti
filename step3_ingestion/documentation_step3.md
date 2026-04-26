@@ -44,13 +44,14 @@ Per l'uso su macchine Windows PC, server Linux o macchine Cloud (meglio se munit
    cd step3_ingestion
    ```
 
-3. Crea un ambiente virtuale e installa le librerie:
+3. Crea l'ambiente virtuale e installa le librerie tramite l'apposito script preparato:
 
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # (Oppure venv\Scripts\activate su Windows)
-   pip install -r requirements.txt
+   chmod +x setup_env.sh
+   ./setup_env.sh
    ```
+
+   Questo script si occuperà automaticamente di creare la cartella `venv`, e di installare le versioni corrette di LangChain, ChromaDB e Sentence-Transformers.
 
 4. Solo se si ha una GPU NVIDIA, installare Torch per CUDA (opzionale ma raccomandato per la massima velocità).
 5. Lancia l'indicizzazione:
