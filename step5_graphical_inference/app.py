@@ -106,9 +106,10 @@ def init_rag_system():
     
     # 2. RAG Prompt Construction
     prompt_template = """Sei un severo e precisissimo assistente legale italiano, progettato per affiancare i commercialisti.
-Devi rispondere alla domanda dell'utente utilizzando ESCLUSIVAMENTE il seguente contesto normativo estratto dalle banche dati ufficiali.
-REGOLA FONDAMENTALE 1: Non usare alcuna conoscenza esterna al contesto. Non inventare date, numeri o articoli di legge.
-REGOLA FONDAMENTALE 2: Se la risposta non è contenuta nei documenti del contesto, devi dire ESATTAMENTE: "Mi dispiace, ma non ho trovato informazioni sufficienti nei documenti a mia disposizione per rispondere a questa domanda."
+Devi rispondere alla domanda dell'utente basandoti sul contesto normativo estratto dalle banche dati ufficiali.
+Sei autorizzato a usare la tua conoscenza generale su materie economiche, finanziarie e aziendali (es. definizioni di bilancio, calcolo di indici come il ROI) per interpretare o integrare la risposta, ma NON devi mai inventare articoli di legge non presenti nel contesto.
+REGOLA FONDAMENTALE 1: Non inventare date, numeri o leggi. Le norme devono provenire solo dal contesto.
+REGOLA FONDAMENTALE 2: Se la norma specifica per rispondere non è contenuta nel contesto, dillo chiaramente, ma se possibile offri comunque una spiegazione tecnica basata sulle tue conoscenze aziendali.
 REGOLA FONDAMENTALE 3: Cita sempre all'interno della tua spiegazione i riferimenti legislativi e/o l'articolo esatto su cui basi la risposta (li trovi nell'intestazione di ogni blocco del contesto).
 
 CONTESTO NORMATIVO ORIGINALE ESTRATTO DAL DATABASE:
@@ -137,6 +138,41 @@ RISPOSTA DETTAGLIATA:"""
     return qa_chain, retriever, embeddings, llm
 
 qa_chain_laws, laws_retriever, embeddings, llm = init_rag_system()
+
+def format_source_citation(doc, is_law=True):
+    metadata = doc.metadata
+    
+    if not is_law or ("act_type" not in metadata and "full_title" not in metadata):
+        return f"[DOC] {metadata.get('source_id', 'Documento Personale')}"
+        
+    act_type = metadata.get("act_type", "")
+    act_date = metadata.get("act_date", "")
+    act_number = metadata.get("act_number", "")
+    full_title = metadata.get("full_title", "")
+    articolo = metadata.get("articolo_num", "")
+    
+    parts = []
+    if act_type:
+        parts.append(act_type)
+    if act_number and act_number != "Unknown":
+        parts.append(f"n. {act_number}")
+    if act_date:
+        parts.append(f"del {act_date}")
+    
+    base_ref = " ".join(parts)
+    if not base_ref:
+        base_ref = metadata.get('source_id', 'Normativa Ufficiale')
+        
+    citation = f"[LEGGE] {base_ref}"
+    
+    if articolo:
+        citation += f" - Art. {articolo}"
+        
+    if full_title:
+        title = full_title if len(full_title) < 100 else full_title[:97] + "..."
+        citation += f" - {title}"
+        
+    return citation
 
 # =========================
 # DOCUMENT PROCESSING LOGIC
@@ -184,10 +220,11 @@ def process_uploaded_files(uploaded_files, embeddings):
     temp_vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
     return temp_vectorstore
 
-doc_prompt_template = """Sei un assistente analitico esperto.
-Rispondi alla domanda usando ESCLUSIVAMENTE le informazioni contenute nei documenti forniti.
-Se la risposta non è presente, rispondi: "Non ci sono informazioni sufficienti nei documenti per rispondere."
-Non inventare numeri, calcoli o dati che non siano esplicitamente scritti o calcolabili con esattezza dai documenti forniti.
+doc_prompt_template = """Sei un assistente analitico esperto e un consulente aziendale/commercialista.
+Usa i dati contenuti nei documenti forniti per rispondere alla domanda dell'utente.
+Sei pienamente autorizzato ad applicare le tue conoscenze in ambito economico, matematico e finanziario (es. formule di bilancio, calcolo del ROI, ROE, ecc.) per analizzare i dati presenti nei documenti.
+REGOLA 1: Non inventare dati aziendali o valori finanziari che non siano presenti nei documenti o che non siano calcolabili partendo da essi.
+REGOLA 2: Se i documenti non contengono i dati necessari per applicare le formule o rispondere alla domanda, specificalo chiaramente.
 
 DOCUMENTI CARICATI:
 ---------------------
@@ -202,9 +239,10 @@ doc_prompt = PromptTemplate(template=doc_prompt_template, input_variables=["cont
 
 hybrid_prompt_template = """Sei un eccellente assistente legale e commerciale.
 Devi rispondere alla domanda dell'utente fondendo IN MODO LOGICO E CORRETTO le informazioni tratte dai documenti privati caricati dall'utente e le leggi italiane tratte dalla banca dati normativa.
+Puoi usare la tua conoscenza tecnica generale (es. definizioni economico-finanziarie, calcolo di indici come il ROI) per elaborare le informazioni.
 REGOLA FONDAMENTALE 1: Cita chiaramente se un dato proviene dal "Documento Caricato" o dalla "Normativa".
-REGOLA FONDAMENTALE 2: Non inventare mai leggi, articoli, scadenze, numeri finanziari o informazioni non presenti nei contesti.
-REGOLA FONDAMENTALE 3: Se le informazioni non bastano a rispondere con certezza, dillo chiaramente.
+REGOLA FONDAMENTALE 2: Non inventare mai leggi, articoli o dati aziendali non presenti nei contesti. Le leggi devono provenire solo dal database normativo e i dati finanziari solo dai documenti caricati.
+REGOLA FONDAMENTALE 3: Se le informazioni nei documenti o nella normativa non bastano a rispondere con certezza (anche usando le tue conoscenze tecnico-finanziarie), dillo chiaramente.
 
 === CONTESTO DAI DOCUMENTI PRIVATI CARICATI ===
 {context_docs}
@@ -335,9 +373,9 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                     
                     sources_list = []
                     for doc in result['source_documents']:
-                        source_id = doc.metadata.get('source_id', 'Sconosciuta')
-                        if source_id not in sources_list:
-                            sources_list.append(source_id)
+                        source_citation = format_source_citation(doc, is_law=True)
+                        if source_citation not in sources_list:
+                            sources_list.append(source_citation)
                             
                 elif app_mode == "📊 Analisi Documenti Privati":
                     if "temp_retriever" not in st.session_state:
@@ -356,9 +394,9 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                     
                     sources_list = []
                     for doc in result['source_documents']:
-                        source_id = doc.metadata.get('source_id', 'Sconosciuta')
-                        if source_id not in sources_list:
-                            sources_list.append(source_id)
+                        source_citation = format_source_citation(doc, is_law=False)
+                        if source_citation not in sources_list:
+                            sources_list.append(source_citation)
 
                 elif app_mode == "🧠 Analisi Ibrida (Documenti + Leggi)":
                     if "temp_retriever" not in st.session_state:
@@ -384,10 +422,10 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                     # 4. Unione fonti visive
                     sources_list = []
                     for doc in docs_retrieved:
-                        src = f"[DOC] {doc.metadata.get('source_id', 'Documento Personale')}"
+                        src = format_source_citation(doc, is_law=False)
                         if src not in sources_list: sources_list.append(src)
                     for doc in laws_retrieved:
-                        src = f"[LEGGE] {doc.metadata.get('source_id', 'Normativa Ufficiale')}"
+                        src = format_source_citation(doc, is_law=True)
                         if src not in sources_list: sources_list.append(src)
                 
                 # Display the response
