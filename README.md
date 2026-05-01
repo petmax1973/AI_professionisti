@@ -11,6 +11,25 @@ Il progetto si basa su una strategia ibrida:
 
 ---
 
+## Esecuzione Automatica (Orchestrazione Pipeline)
+
+Per semplificare e velocizzare l'aggiornamento della base di conoscenza (Fasi 1, 2 e 3), nella cartella principale è presente lo script di orchestrazione **`run_pipeline.py`**.
+
+Questo script implementa un "grafo delle dipendenze" asincrono per ottimizzare i tempi di calcolo, dividendo il lavoro in due rami paralleli e indipendenti:
+
+1. **Ramo Normattiva (Thread A)**: Esegue il download delle leggi (Fase 1) e, non appena concluso, passa istantaneamente alla formattazione dei JSON (Fase 2).
+2. **Ramo Agenzia Entrate (Thread B)**: Esegue in contemporanea lo scraping dei PDF (Fase 1) e avvia autonomamente la formattazione testuale (Fase 2) appena il download termina.
+3. **Ingestion Finale (Fase 3)**: Il processo principale attende che *entrambi* i rami paralleli siano andati a buon fine, dopodiché avvia in sicurezza la vettorializzazione nel database ChromaDB.
+
+**Come utilizzarlo:**
+Dal terminale, assicurati di essere nella cartella principale del progetto ed esegui:
+```bash
+python3 run_pipeline.py
+```
+*(Lo script gestirà autonomamente l'attivazione e disattivazione dei vari ambienti virtuali `venv` richiesti da ogni singolo passaggio).*
+
+---
+
 ## Architettura del Progetto e Passaggi (Steps)
 
 Il progetto è strutturato in una pipeline modulare composta da vari step, ognuno contenuto in una directory dedicata:

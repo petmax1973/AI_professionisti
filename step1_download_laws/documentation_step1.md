@@ -1,5 +1,7 @@
 # Obiettivo dello Step 1: Acquisizione dei Dati Legali (Download)
 
+> **Nota di automazione:** Se desideri eseguire questo step (assieme allo Step 2 e 3) in modo del tutto automatico e asincrono, fai riferimento allo script `run_pipeline.py` documentato nel README principale del progetto.
+
 Questo step contiene **due script indipendenti** per l'acquisizione di documenti legali da fonti istituzionali italiane:
 
 | Script              | Fonte                                                    | Formato output             |

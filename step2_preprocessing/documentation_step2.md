@@ -1,5 +1,7 @@
 # Obiettivo dello Step 2: Preprocessing per il RAG
 
+> **Nota di automazione:** Se desideri eseguire questo step (assieme allo Step 1 e 3) in modo del tutto automatico e asincrono, fai riferimento allo script `run_pipeline.py` documentato nel README principale del progetto.
+
 Lo script
 
 step2_preprocessing/preprocess_rag.py
