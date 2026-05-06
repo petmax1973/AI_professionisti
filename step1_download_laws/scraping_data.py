@@ -293,92 +293,118 @@ def is_allowed_url(url):
     return False
 
 
-def crawl(driver, start_urls):
+def crawl(start_urls):
     """Naviga iterativamente nelle pagine usando una coda (BFS).
 
     Accetta una lista di URL di partenza e include un meccanismo
     di retry per la scansione delle pagine.
     """
+    driver = create_driver()
     visited_urls = set()
     queue = deque()
     for url in start_urls:
         queue.append((url, 0))
     download_count = 0
+    pages_scanned = 0
 
-    while queue:
-        url, depth = queue.popleft()
-        url = normalize_url(url)
+    try:
+        while queue:
+            url, depth = queue.popleft()
+            url = normalize_url(url)
 
-        if url in visited_urls:
-            continue
-        if depth > MAX_DEPTH:
-            logger.warning("[MAX DEPTH] Profondità massima raggiunta per: %s", url)
-            continue
+            if url in visited_urls:
+                continue
+            if depth > MAX_DEPTH:
+                logger.warning("[MAX DEPTH] Profondità massima raggiunta per: %s", url)
+                continue
 
-        visited_urls.add(url)
-        logger.info("[SCAN] (depth=%d, queue=%d, downloaded=%d) Esaminando: %s",
-                     depth, len(queue), download_count, url)
+            visited_urls.add(url)
+            pages_scanned += 1
+            logger.info("[SCAN] (depth=%d, queue=%d, downloaded=%d) Esaminando: %s",
+                         depth, len(queue), download_count, url)
 
-        found_links = []
-        scan_success = False
+            # Riavvio preventivo del driver ogni 500 pagine per evitare memory leaks
+            if pages_scanned % 500 == 0:
+                logger.info("[MAINTENANCE] Riavvio preventivo del WebDriver per liberare memoria (pagine scansionate: %d)...", pages_scanned)
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                driver = create_driver()
 
-        for attempt in range(1, MAX_SCAN_RETRIES + 1):
-            try:
-                driver.get(url)
-                WebDriverWait(driver, PAGE_LOAD_TIMEOUT).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "body"))
-                )
+            found_links = []
+            scan_success = False
 
-                elements = driver.find_elements(By.TAG_NAME, "a")
-                found_links = [
-                    el.get_attribute("href")
-                    for el in elements
-                    if el.get_attribute("href")
-                ]
-                scan_success = True
-                break  # Scansione riuscita, esci dal retry
+            for attempt in range(1, MAX_SCAN_RETRIES + 1):
+                try:
+                    driver.get(url)
+                    WebDriverWait(driver, PAGE_LOAD_TIMEOUT).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
 
-            except Exception as e:
-                if attempt < MAX_SCAN_RETRIES:
-                    logger.warning(
-                        "[RETRY SCAN] Errore scansione %s: %s — "
-                        "Ritento (tentativo %d/%d)",
-                        url, e, attempt, MAX_SCAN_RETRIES)
-                    time.sleep(5)
+                    elements = driver.find_elements(By.TAG_NAME, "a")
+                    found_links = [
+                        el.get_attribute("href")
+                        for el in elements
+                        if el.get_attribute("href")
+                    ]
+                    scan_success = True
+                    break  # Scansione riuscita, esci dal retry
+
+                except Exception as e:
+                    err_msg = str(e).lower()
+                    if "invalid session id" in err_msg or "chrome not reachable" in err_msg or "disconnected" in err_msg:
+                        logger.warning("[RECOVERY] Driver crashato o sessione non valida rilevata. Riavvio del WebDriver...")
+                        try:
+                            driver.quit()
+                        except Exception:
+                            pass
+                        driver = create_driver()
+
+                    if attempt < MAX_SCAN_RETRIES:
+                        logger.warning(
+                            "[RETRY SCAN] Errore scansione %s: %s — "
+                            "Ritento (tentativo %d/%d)",
+                            url, e, attempt, MAX_SCAN_RETRIES)
+                        time.sleep(5)
+                    else:
+                        logger.error(
+                            "[ERRORE] Impossibile scansionare %s dopo %d "
+                            "tentativi: %s", url, MAX_SCAN_RETRIES, e)
+
+            if not scan_success:
+                continue
+
+            for link in set(found_links):
+                full_url = urljoin(url, link)
+
+                # Se è un documento scaricabile, lo scarica
+                if is_document_url(full_url):
+                    download_file(full_url, url)
+                    download_count += 1
+
+                # Se è una sottopagina nelle sezioni consentite, la aggiunge alla coda
                 else:
-                    logger.error(
-                        "[ERRORE] Impossibile scansionare %s dopo %d "
-                        "tentativi: %s", url, MAX_SCAN_RETRIES, e)
+                    clean_url = normalize_url(full_url)
+                    if is_allowed_url(clean_url) and clean_url not in visited_urls:
+                        queue.append((clean_url, depth + 1))
 
-        if not scan_success:
-            continue
+        logger.info("[COMPLETATO] Pagine visitate: %d, Documenti scaricati: %d",
+                    len(visited_urls), download_count)
 
-        for link in set(found_links):
-            full_url = urljoin(url, link)
-
-            # Se è un documento scaricabile, lo scarica
-            if is_document_url(full_url):
-                download_file(full_url, url)
-                download_count += 1
-
-            # Se è una sottopagina nelle sezioni consentite, la aggiunge alla coda
-            else:
-                clean_url = normalize_url(full_url)
-                if is_allowed_url(clean_url) and clean_url not in visited_urls:
-                    queue.append((clean_url, depth + 1))
-
-    logger.info("[COMPLETATO] Pagine visitate: %d, Documenti scaricati: %d",
-                len(visited_urls), download_count)
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    driver = create_driver()
     try:
         logger.info("Inizio scansione iterativa con %d URL di partenza. "
                     "Premere CTRL+C per interrompere.", len(START_URLS))
-        crawl(driver, START_URLS)
+        crawl(START_URLS)
     except KeyboardInterrupt:
         logger.info("[STOP] Interrotto dall'utente.")
     finally:
-        driver.quit()
         logger.info("Processo terminato.")
