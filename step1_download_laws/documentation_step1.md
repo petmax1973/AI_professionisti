@@ -11,6 +11,23 @@ Questo step contiene **due script indipendenti** per l'acquisizione di documenti
 
 ---
 
+## Indice
+- [Script 1: `export_laws_2.py` — Download leggi da Normattiva](#script-1-export_laws_2py--download-leggi-da-normattiva)
+  - [Come funziona passo per passo](#come-funziona-passo-per-passo)
+  - [Output](#output)
+- [Script 2: `scraping_data.py` — Scraping Agenzia delle Entrate](#script-2-scraping_datapy--scraping-agenzia-delle-entrate)
+  - [Come funziona lo scraping passo per passo](#come-funziona-lo-scraping-passo-per-passo)
+  - [Configurazione](#configurazione)
+  - [Dipendenze aggiuntive](#dipendenze-aggiuntive)
+  - [Output dello scraping](#output-dello-scraping)
+- [Come Eseguire gli Script (Requisiti e Installazione)](#come-eseguire-gli-script-requisiti-e-installazione)
+  - [1. Installazione Generale (Linux / Windows / Cloud)](#1-installazione-generale-linux--windows--cloud)
+  - [2. Installazione Specifica per Sistemi macOS](#2-installazione-specifica-per-sistemi-macos)
+  - [3. Nota Specifica: MacBook Air M1 (8GB RAM)](#3-nota-specifica-macbook-air-m1-8gb-ram)
+  - [4. Installazione Specifica per Raspberry Pi (ARM) e Acer Veriton gn100](#4-installazione-specifica-per-raspberry-pi-arm-e-acer-veriton-gn100)
+
+---
+
 ## Script 1: `export_laws_2.py` — Download leggi da Normattiva
 
 Lo script `export_laws_2.py` è il motore di acquisizione (crawler/downloader) del progetto. Il suo scopo esclusivo è interfacciarsi con le API pubbliche della banca dati statale "Normattiva", interrogare il sistema per trovare le leggi aggiornate e scaricarle in un formato strutturato (JSON) per la successiva elaborazione.
@@ -137,9 +154,11 @@ Per eseguire gli script su un server cloud generico, una VPS Linux o un PC Windo
 4. Esegui lo script desiderato:
 
    ```bash
-   python export_laws_2.py       # Download leggi da Normattiva (JSON)
-   python scraping_data.py       # Scraping Agenzia delle Entrate (PDF)
+   python3 export_laws_2.py       # Download leggi da Normattiva (JSON)
+   python3 scraping_data.py       # Scraping Agenzia delle Entrate (PDF)
    ```
+
+> **Attenzione (Requisiti di Sistema):** Mentre `export_laws_2.py` funziona in modo del tutto autonomo, lo script `scraping_data.py` utilizza Selenium. Pertanto è **strettamente necessario** che il browser Google Chrome (o Chromium) sia pre-installato sul sistema operativo prima di avviare l'esecuzione.
 
 ### 2. Installazione Specifica per Sistemi macOS
 
@@ -180,16 +199,16 @@ Se utilizzi un Mac (Intel o Apple Silicon M1/M2/M3/M4):
 
 - **Come procedere:** Puoi tranquillamente tenere gli script in esecuzione in background sul terminale mentre continui a lavorare col tuo Mac.
 
-### 4. Installazione Specifica per Raspberry Pi (ARM)
+### 4. Installazione Specifica per Raspberry Pi (ARM) e Acer Veriton gn100
 
-Se esegui gli script su un Raspberry Pi (es. per tenerli attivi 24/7):
+Se esegui gli script su un Raspberry Pi o su un Acer Veriton (architettura ARM):
 
 1. **Installazione dipendenze di sistema**: L'architettura ARM richiede l'installazione manuale del browser Chromium e del relativo driver (necessari per lo scraper dell'Agenzia delle Entrate):
    ```bash
    sudo apt-get update
    sudo apt-get install chromium-browser chromium-chromedriver
    ```
-   *(Lo script `scraping_data.py` è stato programmato per accorgersi automaticamente di trovarsi su Raspberry Pi e usare queste versioni di sistema anziché cercare di scaricare Chrome da internet).*
+   *(Lo script `scraping_data.py` è stato programmato per accorgersi automaticamente di trovarsi su architettura ARM e usare queste versioni di sistema anziché cercare di scaricare Chrome da internet. Gestisce in automatico anche i percorsi delle installazioni via Snap).*
 
 2. **Setup dell'ambiente Python**:
    ```bash
@@ -199,7 +218,15 @@ Se esegui gli script su un Raspberry Pi (es. per tenerli attivi 24/7):
    pip install -r requirements.txt
    ```
 
-3. **Avvio degli script in background (24/7)**: Per fare in modo che gli script continuino a girare anche dopo aver chiuso la connessione SSH, utilizza il comando `nohup`.
+3. **Avvio degli script (Normale)**: 
+   Se vuoi semplicemente eseguire gli script vedendo l'output a schermo nel tuo terminale, usa questi comandi:
+   ```bash
+   python3 export_laws_2.py       # Download leggi da Normattiva
+   python3 scraping_data.py       # Scraping Agenzia delle Entrate
+   ```
+
+4. **Avvio degli script in background (24/7)** (Opzionale): 
+   Se invece vuoi che gli script continuino a girare in background anche dopo aver chiuso il terminale (o la connessione SSH), utilizza il comando `nohup`:
    
    Per lo script di Normattiva:
    ```bash

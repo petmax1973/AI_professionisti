@@ -1,0 +1,10 @@
+# Dipendenze originali dello step 2
+PyMuPDF
+langchain-text-splitters
+
+# Dipendenze avanzate per Acer Veriton (Grace-Blackwell)
+# Semantic Chunking e modelli di embedding
+langchain-experimental
+langchain-huggingface
+sentence-transformers
+torch

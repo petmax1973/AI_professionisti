@@ -147,12 +147,18 @@ def create_driver():
     system = platform.system().lower()
     machine = platform.machine().lower()
     
-    # È un Raspberry se il sistema è Linux E l'architettura è ARM
+    # È un Raspberry o un ARM Linux (es. Acer Veriton)
     is_raspberry = (system == 'linux') and ('arm' in machine or 'aarch64' in machine)
     
     if is_raspberry:
-        logger.info("Rilevato ambiente Raspberry Pi (Linux ARM). Uso il driver di sistema.")
-        service = Service('/usr/bin/chromedriver')
+        # Controllo se stiamo usando la versione Snap di Chromium (Ubuntu/moderne distro)
+        if os.path.exists('/snap/bin/chromium.chromedriver'):
+            logger.info("Rilevato ambiente Linux ARM con Snap. Uso il driver Snap.")
+            service = Service('/snap/bin/chromium.chromedriver')
+        else:
+            logger.info("Rilevato ambiente Linux ARM standard. Uso il driver di sistema.")
+            service = Service('/usr/bin/chromedriver')
+            
         chrome_options.binary_location = '/usr/bin/chromium-browser'
     else:
         logger.info(f"Rilevato ambiente {system.capitalize()} ({machine}). Uso ChromeDriverManager.")
