@@ -143,7 +143,7 @@ Per eseguire gli script su un server cloud generico, una VPS Linux o un PC Windo
 
 1. Apri un terminale o prompt dei comandi.
 2. Posizionati all'interno della cartella dello Step 1 (`cd step1_download_laws`).
-3. Crea e attiva l'ambiente, poi installa le dipendenze:
+3. **SOLO LA PRIMA VOLTA** - Crea l'ambiente e installa le dipendenze:
 
    ```bash
    python3 -m venv venv
@@ -151,9 +151,10 @@ Per eseguire gli script su un server cloud generico, una VPS Linux o un PC Windo
    pip install -r requirements.txt
    ```
 
-4. Esegui lo script desiderato:
+4. **OGNI VOLTA CHE APRI UN NUOVO TERMINALE** - Attiva l'ambiente ed esegui lo script desiderato:
 
    ```bash
+   source venv/bin/activate  # (Su Windows: venv\Scripts\activate)
    python3 export_laws_2.py       # Download leggi da Normattiva (JSON)
    python3 scraping_data.py       # Scraping Agenzia delle Entrate (PDF)
    ```
@@ -210,7 +211,8 @@ Se esegui gli script su un Raspberry Pi o su un Acer Veriton (architettura ARM):
    ```
    *(Lo script `scraping_data.py` è stato programmato per accorgersi automaticamente di trovarsi su architettura ARM e usare queste versioni di sistema anziché cercare di scaricare Chrome da internet. Gestisce in automatico anche i percorsi delle installazioni via Snap).*
 
-2. **Setup dell'ambiente Python**:
+2. **Setup dell'ambiente Python (SOLO LA PRIMA VOLTA)**:
+   Crea l'ambiente virtuale e installa le librerie necessarie:
    ```bash
    cd step1_download_laws
    python3 -m venv venv
@@ -218,7 +220,12 @@ Se esegui gli script su un Raspberry Pi o su un Acer Veriton (architettura ARM):
    pip install -r requirements.txt
    ```
 
-3. **Avvio degli script (Normale)**: 
+3. **Avvio degli script (Routine per ogni nuovo terminale)**: 
+   Ogni volta che apri un nuovo terminale per lavorare al progetto, assicurati di essere nella cartella e attiva l'ambiente:
+   ```bash
+   cd step1_download_laws
+   source venv/bin/activate
+   ```
    Se vuoi semplicemente eseguire gli script vedendo l'output a schermo nel tuo terminale, usa questi comandi:
    ```bash
    python3 export_laws_2.py       # Download leggi da Normattiva
