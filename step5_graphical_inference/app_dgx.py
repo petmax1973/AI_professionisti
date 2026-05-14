@@ -1,0 +1,446 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message=".*urllib3.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*urllib3.*")
+if hasattr(warnings, 'DependencyWarning'):
+    warnings.filterwarnings("ignore", category=DependencyWarning, module="requests")
+try:
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+except Exception:
+    pass
+
+import os
+import sys
+
+# Previene l'errore di torch.classes disabilitando il file watcher di Streamlit per questo script
+os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
+
+import streamlit as st
+import psutil
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+st.set_page_config(
+    page_title="Assistente Commercialista AI (Blackwell Optimized)",
+    page_icon="⚖️",
+    layout="centered",
+    initial_sidebar_state="expanded",
+)
+
+# Disabilita completamente la telemetria di ChromaDB per rispetto della Privacy e del GDPR
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+# Suppress parallelism warnings from Huggingface Tokenizers
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_ollama import OllamaLLM as Ollama
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message=".*urllib3.*")
+from langchain_core.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
+
+import tempfile
+from langchain_community.document_loaders import PyPDFLoader, CSVLoader, UnstructuredExcelLoader, TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# =========================
+# PARAMETER CONFIGURATION
+# =========================
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Note: we use the exact same vector DB populated in step 3
+CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "../step3_ingestion/laws_vector_db")
+
+EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
+
+# per scaricarlo: ollama pull llama3.3:70b
+LLM_MODEL_NAME = "llama3.3:70b"
+
+# per scaricarlo: ollama pull command-r-plus
+# LLM_MODEL_NAME = "command-r-plus"
+
+RETRIEVER_K = 4 # Number of law chunks to inject into the LLM logic
+
+# =========================
+# STREAMLIT CONFIGURATION
+# =========================
+
+st.title("⚖️ Assistente Commercialista AI")
+st.markdown("Interroga la banca dati legislativa in linguaggio naturale. Ottimizzato per sistemi ad altissime prestazioni (**Nvidia GB10 Blackwell**).")
+
+# =========================
+# INITIALIZATION (Cached)
+# =========================
+@st.cache_resource(show_spinner="Caricamento modelli in corso...")
+def init_rag_system():
+    # 1. Verification of DB existence
+    if not os.path.exists(CHROMA_DB_DIR):
+        st.error(f"Errore: Il database vettoriale non esiste in `{CHROMA_DB_DIR}`")
+        st.info("Assicurati di aver completato lo Step 3 (Ingestion) in precedenza.")
+        st.stop()
+
+    try:
+        embeddings = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL_NAME,
+            model_kwargs={'device': 'cuda'}, # Ottimizzato per architettura Nvidia CUDA / Blackwell
+            encode_kwargs={'normalize_embeddings': True}
+        )
+    except Exception:
+        embeddings = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL_NAME,
+            model_kwargs={'device': 'cpu'}
+        )
+        
+    db = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embeddings)
+    retriever = db.as_retriever(search_kwargs={"k": RETRIEVER_K})
+    
+    llm = Ollama(model=LLM_MODEL_NAME, temperature=0.0)
+    
+    # 2. RAG Prompt Construction
+    prompt_template = """Sei un severo e precisissimo assistente legale italiano, progettato per affiancare i commercialisti.
+Devi rispondere alla domanda dell'utente basandoti sul contesto normativo estratto dalle banche dati ufficiali.
+Sei autorizzato a usare la tua conoscenza generale su materie economiche, finanziarie e aziendali (es. definizioni di bilancio, calcolo di indici come il ROI) per interpretare o integrare la risposta, ma NON devi mai inventare articoli di legge non presenti nel contesto.
+REGOLA FONDAMENTALE 1: Non inventare date, numeri o leggi. Le norme devono provenire solo dal contesto.
+REGOLA FONDAMENTALE 2: Se la norma specifica per rispondere non è contenuta nel contesto, dillo chiaramente, ma se possibile offri comunque una spiegazione tecnica basata sulle tue conoscenze aziendali.
+REGOLA FONDAMENTALE 3: Cita sempre all'interno della tua spiegazione i riferimenti legislativi e/o l'articolo esatto su cui basi la risposta (li trovi nell'intestazione di ogni blocco del contesto).
+
+CONTESTO NORMATIVO ORIGINALE ESTRATTO DAL DATABASE:
+---------------------
+{context}
+---------------------
+
+DOMANDA DEL PROFESSIONISTA: {question}
+
+RISPOSTA DETTAGLIATA:"""
+
+    PROMPT = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
+    )
+    
+    # 3. Chain Building
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": PROMPT}
+    )
+    
+    # Main laws retriever exposed for hybrid use
+    return qa_chain, retriever, embeddings, llm
+
+qa_chain_laws, laws_retriever, embeddings, llm = init_rag_system()
+
+def format_source_citation(doc, is_law=True):
+    metadata = doc.metadata
+    
+    if not is_law or ("act_type" not in metadata and "full_title" not in metadata):
+        return f"[DOC] {metadata.get('source_id', 'Documento Personale')}"
+        
+    act_type = metadata.get("act_type", "")
+    act_date = metadata.get("act_date", "")
+    act_number = metadata.get("act_number", "")
+    full_title = metadata.get("full_title", "")
+    articolo = metadata.get("articolo_num", "")
+    
+    parts = []
+    if act_type:
+        parts.append(act_type)
+    if act_number and act_number != "Unknown":
+        parts.append(f"n. {act_number}")
+    if act_date:
+        parts.append(f"del {act_date}")
+    
+    base_ref = " ".join(parts)
+    if not base_ref:
+        base_ref = metadata.get('source_id', 'Normativa Ufficiale')
+        
+    citation = f"[LEGGE] {base_ref}"
+    
+    if articolo:
+        citation += f" - Art. {articolo}"
+        
+    if full_title:
+        title = full_title if len(full_title) < 100 else full_title[:97] + "..."
+        citation += f" - {title}"
+        
+    return citation
+
+# =========================
+# DOCUMENT PROCESSING LOGIC
+# =========================
+def process_uploaded_files(uploaded_files, embeddings):
+    documents = []
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for uploaded_file in uploaded_files:
+            temp_path = os.path.join(temp_dir, uploaded_file.name)
+            with open(temp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+                
+            ext = os.path.splitext(uploaded_file.name)[1].lower()
+            if ext == ".pdf":
+                loader = PyPDFLoader(temp_path)
+            elif ext == ".csv":
+                loader = CSVLoader(temp_path)
+            elif ext == ".xlsx":
+                try:
+                    loader = UnstructuredExcelLoader(temp_path)
+                except Exception as e:
+                    st.error(f"Errore caricamento Excel: {e}")
+                    continue
+            elif ext == ".txt":
+                loader = TextLoader(temp_path)
+            else:
+                st.warning(f"Formato non supportato: {ext}")
+                continue
+                
+            try:
+                docs = loader.load()
+                for doc in docs:
+                    doc.metadata['source_id'] = uploaded_file.name
+                documents.extend(docs)
+            except Exception as e:
+                st.error(f"Errore durante la lettura di {uploaded_file.name}: {e}")
+                
+    if not documents:
+        return None
+        
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(documents)
+    
+    temp_vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
+    return temp_vectorstore
+
+doc_prompt_template = """Sei un assistente analitico esperto e un consulente aziendale/commercialista.
+Usa i dati contenuti nei documenti forniti per rispondere alla domanda dell'utente.
+Sei pienamente autorizzato ad applicare le tue conoscenze in ambito economico, matematico e finanziario (es. formule di bilancio, calcolo del ROI, ROE, ecc.) per analizzare i dati presenti nei documenti.
+REGOLA 1: Non inventare dati aziendali o valori finanziari che non siano presenti nei documenti o che non siano calcolabili partendo da essi.
+REGOLA 2: Se i documenti non contengono i dati necessari per applicare le formule o rispondere alla domanda, specificalo chiaramente.
+
+DOCUMENTI CARICATI:
+---------------------
+{context}
+---------------------
+
+DOMANDA: {question}
+
+RISPOSTA:"""
+
+doc_prompt = PromptTemplate(template=doc_prompt_template, input_variables=["context", "question"])
+
+hybrid_prompt_template = """Sei un eccellente assistente legale e commerciale.
+Devi rispondere alla domanda dell'utente fondendo IN MODO LOGICO E CORRETTO le informazioni tratte dai documenti privati caricati dall'utente e le leggi italiane tratte dalla banca dati normativa.
+Puoi usare la tua conoscenza tecnica generale (es. definizioni economico-finanziarie, calcolo di indici come il ROI) per elaborare le informazioni.
+REGOLA FONDAMENTALE 1: Cita chiaramente se un dato proviene dal "Documento Caricato" o dalla "Normativa".
+REGOLA FONDAMENTALE 2: Non inventare mai leggi, articoli o dati aziendali non presenti nei contesti. Le leggi devono provenire solo dal database normativo e i dati finanziari solo dai documenti caricati.
+REGOLA FONDAMENTALE 3: Se le informazioni nei documenti o nella normativa non bastano a rispondere con certezza (anche usando le tue conoscenze tecnico-finanziarie), dillo chiaramente.
+
+=== CONTESTO DAI DOCUMENTI PRIVATI CARICATI ===
+{context_docs}
+================================================
+
+=== CONTESTO NORMATIVO DALLA BANCA DATI ====
+{context_laws}
+================================================
+
+DOMANDA DELL'UTENTE: {question}
+
+RISPOSTA DETTAGLIATA (cita le fonti):"""
+
+hybrid_prompt = PromptTemplate(template=hybrid_prompt_template, input_variables=["context_docs", "context_laws", "question"])
+
+# =========================
+# SIDEBAR
+# =========================
+st.sidebar.header("📁 Gestione Documenti")
+app_mode = st.sidebar.radio("Scegli la base di conoscenza:", [
+    "📚 Ricerca Normativa (Leggi)", 
+    "📊 Analisi Documenti Privati",
+    "🧠 Analisi Ibrida (Documenti + Leggi)"
+])
+
+if app_mode in ["📊 Analisi Documenti Privati", "🧠 Analisi Ibrida (Documenti + Leggi)"]:
+    uploaded_files = st.sidebar.file_uploader(
+        "Carica i tuoi documenti", 
+        type=["pdf", "txt", "csv", "xlsx"], 
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files:
+        if st.sidebar.button("Elabora Documenti"):
+            with st.spinner("Analisi e vettorializzazione dei documenti in corso..."):
+                temp_db = process_uploaded_files(uploaded_files, embeddings)
+                if temp_db:
+                    st.session_state.temp_retriever = temp_db.as_retriever(search_kwargs={"k": 4})
+                    st.sidebar.success("Documenti pronti per l'analisi!")
+                else:
+                    st.sidebar.error("Impossibile elaborare i documenti.")
+
+    if st.sidebar.button("Pulisci Memoria Documenti"):
+        if "temp_retriever" in st.session_state:
+            del st.session_state["temp_retriever"]
+        st.session_state.messages = []
+        st.rerun()
+
+# =========================
+# MONITORAGGIO SISTEMA
+# =========================
+st.sidebar.markdown("---")
+st.sidebar.header("📈 Stato Sistema (Blackwell)")
+
+@st.fragment(run_every="2s")
+def render_system_monitor():
+    cpu_usage = psutil.cpu_percent(interval=None)
+    ram_usage = psutil.virtual_memory().percent
+
+    gpu_mem = "N/D"
+    gpu_util = "N/D"
+
+    try:
+        import subprocess
+        # Interroga nvidia-smi per utilizzo e memoria su architetture Nvidia (es. DGX / Blackwell)
+        res = subprocess.check_output(
+            ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used', '--format=csv,noheader,nounits'], 
+            text=True
+        )
+        lines = res.strip().split('\n')
+        if lines:
+            parts = lines[0].split(',')
+            if len(parts) == 2:
+                gpu_util = f"{parts[0].strip()}%"
+                gpu_mem = f"{parts[1].strip()} MB"
+    except Exception:
+        # Fallback se nvidia-smi fallisce o non è presente
+        if torch is not None and torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / (1024**2)
+            gpu_mem = f"{allocated:.1f} MB (Torch)"
+
+    col1, col2 = st.columns(2)
+    col1.metric("CPU", f"{cpu_usage}%")
+    col2.metric("RAM", f"{ram_usage}%")
+    
+    col3, col4 = st.columns(2)
+    col3.metric("GPU Uso", gpu_util)
+    col4.metric("GPU Mem", gpu_mem)
+
+with st.sidebar:
+    render_system_monitor()
+
+# =========================
+# CHAT INTERFACE
+# =========================
+# Initialize chat history in session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    # Add an initial greeting message from the assistant
+    st.session_state.messages.append({"role": "assistant", "content": "Salve. Sono il tuo Assistente Commercialista locale. (Sistema accelerato tramite architettura NVIDIA Blackwell). Come posso aiutarti oggi?"})
+
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        # If there are sources associated with the message, display them
+        if "sources" in message and message["sources"]:
+            with st.expander("📑 Fonti normative consultate"):
+                for idx, source in enumerate(message["sources"]):
+                    st.markdown(f"**[{idx+1}]** {source}")
+
+# React to user input
+if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
+    # Display user message in chat message container
+    st.chat_message("user").markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        with st.spinner("Ricerca nel database e generazione risposta in corso..."):
+            try:
+                # Execution
+                if app_mode == "📚 Ricerca Normativa (Leggi)":
+                    result = qa_chain_laws.invoke({"query": prompt})
+                    response = result['result']
+                    
+                    sources_list = []
+                    for doc in result['source_documents']:
+                        source_citation = format_source_citation(doc, is_law=True)
+                        if source_citation not in sources_list:
+                            sources_list.append(source_citation)
+                            
+                elif app_mode == "📊 Analisi Documenti Privati":
+                    if "temp_retriever" not in st.session_state:
+                        st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
+                        st.stop()
+                        
+                    qa_chain_docs = RetrievalQA.from_chain_type(
+                        llm=llm,
+                        chain_type="stuff",
+                        retriever=st.session_state.temp_retriever,
+                        return_source_documents=True,
+                        chain_type_kwargs={"prompt": doc_prompt}
+                    )
+                    result = qa_chain_docs.invoke({"query": prompt})
+                    response = result['result']
+                    
+                    sources_list = []
+                    for doc in result['source_documents']:
+                        source_citation = format_source_citation(doc, is_law=False)
+                        if source_citation not in sources_list:
+                            sources_list.append(source_citation)
+
+                elif app_mode == "🧠 Analisi Ibrida (Documenti + Leggi)":
+                    if "temp_retriever" not in st.session_state:
+                        st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
+                        st.stop()
+                    
+                    # 1. Recupero frammenti documenti
+                    docs_retrieved = st.session_state.temp_retriever.invoke(prompt)
+                    context_docs = "\n\n".join([d.page_content for d in docs_retrieved])
+                    
+                    # 2. Recupero frammenti leggi
+                    laws_retrieved = laws_retriever.invoke(prompt)
+                    context_laws = "\n\n".join([d.page_content for d in laws_retrieved])
+                    
+                    # 3. Costruzione e Chiamata LLM Custom
+                    formatted_prompt = hybrid_prompt.format(
+                        context_docs=context_docs, 
+                        context_laws=context_laws, 
+                        question=prompt
+                    )
+                    response = llm.invoke(formatted_prompt)
+                    
+                    # 4. Unione fonti visive
+                    sources_list = []
+                    for doc in docs_retrieved:
+                        src = format_source_citation(doc, is_law=False)
+                        if src not in sources_list: sources_list.append(src)
+                    for doc in laws_retrieved:
+                        src = format_source_citation(doc, is_law=True)
+                        if src not in sources_list: sources_list.append(src)
+                
+                # Display the response
+                st.markdown(response)
+                
+                # Display the sources
+                if sources_list:
+                    with st.expander("📑 Fonti normative consultate"):
+                        for i, source in enumerate(sources_list):
+                            st.markdown(f"**[{i+1}]** {source}")
+                            
+                # Add assistant response to chat history
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": response,
+                    "sources": sources_list
+                })
+            except Exception as e:
+                error_msg = f"❌ Errore critico: `{e}`. Assicurati che Ollama sia in esecuzione e che il modello `{LLM_MODEL_NAME}` sia installato."
+                st.error(error_msg)
+                st.session_state.messages.append({"role": "assistant", "content": error_msg})

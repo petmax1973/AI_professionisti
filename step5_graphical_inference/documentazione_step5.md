@@ -87,3 +87,75 @@ Quando hai finito di usare l'interfaccia:
 - Torna nel terminale e premi `Ctrl+C` per fermare Streamlit.
 - Digita `deactivate` per uscire.
 - *Nota bene: NESSUN documento privato verrà conservato dopo lo spegnimento, a garanzia della massima privacy.*
+
+### 4. Installazione Specifica per Sistemi ad Alte Prestazioni (Acer Veriton VN100 / Nvidia GB10 Blackwell)
+
+Se disponi di una workstation avanzata come l'**Acer Veriton VN100** equipaggiato con processore **Nvidia Blackwell**, è stato creato uno script dedicato (`app_dgx.py`) che sfrutta al massimo l'architettura CUDA per l'elaborazione dei vettori e offre un monitoraggio accurato in tempo reale della VRAM.
+
+L'installazione deve mantenere tutto il necessario all'interno della cartella corrente in un ambiente virtuale isolato (`venv`).
+
+**I. OPERAZIONI DA ESEGUIRE SOLO LA PRIMA VOLTA (Installazione)**
+
+Questi passaggi servono a preparare l'ambiente e vanno eseguiti **solo una volta**:
+
+1. Apri un terminale e vai nella cartella del progetto:
+   ```bash
+   cd /home/max/Documenti/programmazione/ai_project/AI_professionisti/step5_graphical_inference
+   ```
+
+2. Crea l'ambiente virtuale isolato (`venv`) all'interno della cartella:
+   ```bash
+   python3 -m venv venv
+   ```
+
+3. Attiva l'ambiente virtuale:
+   ```bash
+   source venv/bin/activate
+   ```
+
+4. Installa le dipendenze locali:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+   *(Nota: per sfruttare appieno Blackwell, assicurati che la versione di `torch` installata da pip supporti l'ultima versione di CUDA compatibile con la tua GPU. In genere su Linux si esegue anche un comando come `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121` se necessario).*
+
+5. Termina la configurazione uscendo dall'ambiente:
+   ```bash
+   deactivate
+   ```
+
+---
+
+**II. OPERAZIONI DA ESEGUIRE OGNI VOLTA CHE VUOI USARE L'APP**
+
+Segui questi passaggi ogni volta che desideri avviare l'assistente:
+
+1. Apri il terminale e vai nella cartella del progetto:
+   ```bash
+   cd /home/max/Documenti/programmazione/ai_project/AI_professionisti/step5_graphical_inference
+   ```
+
+2. Attiva l'ambiente virtuale:
+   ```bash
+   source venv/bin/activate
+   ```
+
+3. Avvia l'interfaccia grafica ottimizzata:
+   ```bash
+   streamlit run app_dgx.py
+   ```
+
+**Quando hai finito di usare l'interfaccia:**
+- Torna nel terminale e premi `Ctrl+C` per fermare il server Streamlit.
+- Disattiva sempre l'ambiente virtuale digitando:
+  ```bash
+  deactivate
+  ```
+
+---
+
+**Vantaggi dell'ottimizzazione in `app_dgx.py`**:
+- **Accelerazione CUDA Diretta**: `device='cuda'` configurato esplicitamente per il modello di embedding, bypassando calcoli lenti su CPU.
+- **Monitoraggio GPU Real-Time**: Interroga i sensori Nvidia tramite `nvidia-smi` per darti l'esatto utilizzo percentuale del core Blackwell e la VRAM allocata direttamente nella barra laterale di Streamlit.
+- **Isolamento e Pulizia**: Il progetto resta incapsulato e sicuro nella sua directory, senza necessità di installare librerie a livello di sistema operativo.
