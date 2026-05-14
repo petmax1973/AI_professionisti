@@ -3,6 +3,7 @@ import os
 import re
 import glob
 import concurrent.futures
+import multiprocessing
 
 # ---------------------------------------------------------------------------
 # Dipendenze Avanzate (Grace-Blackwell)
@@ -198,4 +199,5 @@ def build_agenzia_rag_dataset():
     print("=" * 80)
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method('spawn', force=True)
     build_agenzia_rag_dataset()

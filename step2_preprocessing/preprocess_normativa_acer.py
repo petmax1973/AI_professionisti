@@ -102,9 +102,9 @@ def process_json_file(filepath):
          
     # 3. Exploration of Annexes (Attachments, where the core of the law often is)
     annexes = data.get('annessi', {})
-    if_annexes_root = annexes.get('elementi', [])
-    if_annexes_root:
-         extract_articles_recursive(if_annexes_root, law_metadata, extracted_articles)
+    annexes_root = annexes.get('elementi', [])
+    if annexes_root:
+         extract_articles_recursive(annexes_root, law_metadata, extracted_articles)
          
     return extracted_articles
 

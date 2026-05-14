@@ -96,6 +96,43 @@ Per l'utilizzo su sistemi Mac recenti con chip Apple Silicon (M1, M2, ecc.), sfr
 Quando hai finito con lo Step 3, puoi uscire dall'ambiente virtuale digitando:
 `deactivate`
 
+### 4. Installazione Specifica per Acer Veriton VN100 GB10 Blackwell
+
+**Ottimizzazione per NVIDIA Grace Blackwell (128GB RAM e GPU GB10):** Questo sistema è progettato per massimi carichi AI. Per sfruttarne appieno le potenzialità (fino a 1 PetaFLOP), è stato creato uno script dedicato che massimizza la parallelizzazione.
+
+* **Accelerazione CUDA Nativa:** Lo script forza l'utilizzo di `device="cuda"` per utilizzare la potente GPU Blackwell integrata.
+* **Batch Size Massiccio:** L'elaborazione avviene a blocchi enormi (2000 documenti contemporaneamente anziché 100, e batch di embedding da 256 anziché 16), sfruttando i 128GB di memoria a disposizione senza colli di bottiglia.
+* **Gestione Cache Ottimizzata:** Sfrutta `torch.cuda.empty_cache()` per gestire la VRAM in modo efficiente.
+
+**Istruzioni d'uso complete:**
+
+1. Apri il Terminale del tuo sistema (es. NVIDIA DGX OS, Ubuntu).
+2. Vai nella cartella dello Step 3:
+
+   ```bash
+   cd step3_ingestion
+   ```
+
+3. **Solo ed esclusivamente la prima volta**, crea l'ambiente isolato e scarica tutte le librerie necessarie (incluso il modello AI) lanciando lo script bash:
+
+   ```bash
+   ./setup_env.sh
+   ```
+
+4. Per l'esecuzione attuale (e per ogni sessione futura), assicurati di attivare l'ambiente virtuale:
+
+   ```bash
+   source venv/bin/activate
+   ```
+
+5. Lancia l'indicizzazione utilizzando lo script ottimizzato:
+
+   ```bash
+   python3 ingest_rag_veriton.py
+   ```
+
+L'ingestion sarà completata in una frazione del tempo rispetto ai sistemi tradizionali. Quando hai finito, puoi uscire dall'ambiente virtuale digitando `deactivate`.
+
 <!-- ========================================== -->
 
 ## DIPENDENZE (requirements.txt)
