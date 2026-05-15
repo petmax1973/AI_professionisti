@@ -372,24 +372,42 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        with st.spinner("Ricerca nel database e generazione risposta in corso..."):
-            try:
-                # Execution
-                if app_mode == "📚 Ricerca Normativa (Leggi)":
-                    result = qa_chain_laws.invoke({"query": prompt})
-                    response = result['result']
-                    
-                    sources_list = []
-                    for doc in result['source_documents']:
-                        source_citation = format_source_citation(doc, is_law=True)
-                        if source_citation not in sources_list:
-                            sources_list.append(source_citation)
-                            
-                elif app_mode == "📊 Analisi Documenti Privati":
-                    if "temp_retriever" not in st.session_state:
-                        st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
-                        st.stop()
+        from langchain_core.callbacks.base import BaseCallbackHandler
+        
+        class StreamHandler(BaseCallbackHandler):
+            def __init__(self, container):
+                self.container = container
+                self.text = ""
+            def on_llm_new_token(self, token: str, **kwargs) -> None:
+                self.text += token
+                self.container.markdown(self.text + "▌")
+                
+        response_placeholder = st.empty()
+        stream_handler = StreamHandler(response_placeholder)
+
+        try:
+            # Execution
+            if app_mode == "📚 Ricerca Normativa (Leggi)":
+                with st.spinner("Ricerca vettoriale e generazione in corso..."):
+                    result = qa_chain_laws.invoke(
+                        {"query": prompt},
+                        config={"callbacks": [stream_handler]}
+                    )
+                response = result['result']
+                response_placeholder.markdown(response) # Rimuove il cursore
+                
+                sources_list = []
+                for doc in result['source_documents']:
+                    source_citation = format_source_citation(doc, is_law=True)
+                    if source_citation not in sources_list:
+                        sources_list.append(source_citation)
                         
+            elif app_mode == "📊 Analisi Documenti Privati":
+                if "temp_retriever" not in st.session_state:
+                    st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
+                    st.stop()
+                    
+                with st.spinner("Analisi documenti in corso..."):
                     qa_chain_docs = RetrievalQA.from_chain_type(
                         llm=llm,
                         chain_type="stuff",
@@ -397,20 +415,25 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                         return_source_documents=True,
                         chain_type_kwargs={"prompt": doc_prompt}
                     )
-                    result = qa_chain_docs.invoke({"query": prompt})
-                    response = result['result']
-                    
-                    sources_list = []
-                    for doc in result['source_documents']:
-                        source_citation = format_source_citation(doc, is_law=False)
-                        if source_citation not in sources_list:
-                            sources_list.append(source_citation)
+                    result = qa_chain_docs.invoke(
+                        {"query": prompt},
+                        config={"callbacks": [stream_handler]}
+                    )
+                response = result['result']
+                response_placeholder.markdown(response)
+                
+                sources_list = []
+                for doc in result['source_documents']:
+                    source_citation = format_source_citation(doc, is_law=False)
+                    if source_citation not in sources_list:
+                        sources_list.append(source_citation)
 
-                elif app_mode == "🧠 Analisi Ibrida (Documenti + Leggi)":
-                    if "temp_retriever" not in st.session_state:
-                        st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
-                        st.stop()
-                    
+            elif app_mode == "🧠 Analisi Ibrida (Documenti + Leggi)":
+                if "temp_retriever" not in st.session_state:
+                    st.error("Devi prima caricare ed elaborare i documenti nella barra laterale.")
+                    st.stop()
+                
+                with st.spinner("Recupero frammenti in corso..."):
                     # 1. Recupero frammenti documenti
                     docs_retrieved = st.session_state.temp_retriever.invoke(prompt)
                     context_docs = "\n\n".join([d.page_content for d in docs_retrieved])
@@ -418,40 +441,42 @@ if prompt := st.chat_input("Inserisci la tua ricerca legale..."):
                     # 2. Recupero frammenti leggi
                     laws_retrieved = laws_retriever.invoke(prompt)
                     context_laws = "\n\n".join([d.page_content for d in laws_retrieved])
-                    
-                    # 3. Costruzione e Chiamata LLM Custom
-                    formatted_prompt = hybrid_prompt.format(
-                        context_docs=context_docs, 
-                        context_laws=context_laws, 
-                        question=prompt
-                    )
-                    response = llm.invoke(formatted_prompt)
-                    
-                    # 4. Unione fonti visive
-                    sources_list = []
-                    for doc in docs_retrieved:
-                        src = format_source_citation(doc, is_law=False)
-                        if src not in sources_list: sources_list.append(src)
-                    for doc in laws_retrieved:
-                        src = format_source_citation(doc, is_law=True)
-                        if src not in sources_list: sources_list.append(src)
                 
-                # Display the response
-                st.markdown(response)
+                # 3. Costruzione e Chiamata LLM Custom con Streaming
+                formatted_prompt = hybrid_prompt.format(
+                    context_docs=context_docs, 
+                    context_laws=context_laws, 
+                    question=prompt
+                )
                 
-                # Display the sources
-                if sources_list:
-                    with st.expander("📑 Fonti normative consultate"):
-                        for i, source in enumerate(sources_list):
-                            st.markdown(f"**[{i+1}]** {source}")
-                            
-                # Add assistant response to chat history
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": response,
-                    "sources": sources_list
-                })
-            except Exception as e:
-                error_msg = f"❌ Errore critico: `{e}`. Assicurati che Ollama sia in esecuzione e che il modello `{LLM_MODEL_NAME}` sia installato."
-                st.error(error_msg)
-                st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                response = ""
+                for chunk in llm.stream(formatted_prompt):
+                    response += chunk
+                    response_placeholder.markdown(response + "▌")
+                response_placeholder.markdown(response)
+                
+                # 4. Unione fonti visive
+                sources_list = []
+                for doc in docs_retrieved:
+                    src = format_source_citation(doc, is_law=False)
+                    if src not in sources_list: sources_list.append(src)
+                for doc in laws_retrieved:
+                    src = format_source_citation(doc, is_law=True)
+                    if src not in sources_list: sources_list.append(src)
+            
+            # Display the sources
+            if sources_list:
+                with st.expander("📑 Fonti normative consultate"):
+                    for i, source in enumerate(sources_list):
+                        st.markdown(f"**[{i+1}]** {source}")
+                        
+            # Add assistant response to chat history
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": response,
+                "sources": sources_list
+            })
+        except Exception as e:
+            error_msg = f"❌ Errore critico: `{e}`. Assicurati che Ollama sia in esecuzione e che il modello `{LLM_MODEL_NAME}` sia installato."
+            st.error(error_msg)
+            st.session_state.messages.append({"role": "assistant", "content": error_msg})
