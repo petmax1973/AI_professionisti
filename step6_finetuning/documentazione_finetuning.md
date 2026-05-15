@@ -21,23 +21,42 @@ Viene preparato un *Dataset* (es. 500-1000 domande/risposte) salvato in tre file
 
 ---
 
-## 2. Percorso A: NVIDIA DGX Spark GB10 (Blackwell)
+## 2. Percorso A: NVIDIA DGX Spark GB10 (Blackwell) — QLoRA in FP4
 
-Questo sistema rappresenta l'avanguardia per l'Intelligenza Artificiale. Grazie all'architettura **Blackwell**, all'enorme dotazione di RAM (es. 128GB) e di VRAM ad altissime prestazioni, il fine-tuning dei modelli diviene incredibilmente rapido ed efficiente, eliminando del tutto i colli di bottiglia hardware tipici di altri sistemi.
+Questo sistema rappresenta l'avanguardia per l'Intelligenza Artificiale. Grazie all'architettura **Blackwell** e ai 128 GB di **memoria unificata** (condivisa tra CPU e GPU), il fine-tuning di modelli fino a 32B parametri è possibile direttamente in locale.
 
-### 2.1 Preparazione dell'Ambiente (Una tantum)
+> **⚠️ Nota Tecnica — Memoria Unificata:**
+> L'Acer Veriton VN100 GB10 utilizza un'architettura a **memoria unificata**: i 128 GB di RAM sono condivisi tra CPU e GPU. Se il training alloca troppa memoria, il sistema operativo va in swap e il PC si blocca. I parametri nello script `train_dgx.py` sono stati calibrati per evitare questo problema.
 
-* **Vantaggi dell'Architettura Blackwell (Supporto Nativo FP4):** I nuovi Tensor Core introducono il supporto **nativo al formato FP4** (4-bit floating point). A differenza dei sistemi precedenti dove la quantizzazione a 4-bit gravava sui core standard, Blackwell esegue calcoli matriciali in FP4 direttamente via hardware. Questo raddoppia le prestazioni rispetto all'FP8 e riduce drasticamente l'uso della VRAM, permettendo di addestrare modelli enormi (es. Llama-3 70B) senza colli di bottiglia e senza perdita di precisione visibile.
-* **Installazione dell'ambiente:**
-  È essenziale installare PyTorch con supporto CUDA. Includiamo `bitsandbytes` per la gestione ottimizzata dei formati a 4-bit.
+### 2.1 Tecnica: QLoRA (Quantized LoRA)
+
+Lo script utilizza **QLoRA**: il modello base viene caricato **quantizzato in FP4** (4-bit nativo Blackwell) e solo piccoli adapter LoRA vengono addestrati. Questo riduce la memoria necessaria da ~64 GB (FP16 completo) a ~20 GB.
+
+* **Vantaggi dell'Architettura Blackwell (Supporto Nativo FP4):** I nuovi Tensor Core introducono il supporto **nativo al formato FP4** (4-bit floating point). A differenza dei sistemi precedenti dove la quantizzazione a 4-bit gravava sui core standard, Blackwell esegue calcoli matriciali in FP4 direttamente via hardware. Questo raddoppia le prestazioni rispetto all'FP8 e riduce drasticamente l'uso della VRAM.
+
+### 2.2 Preparazione dell'Ambiente (Una tantum)
+
   ```bash
   python3 -m venv venv_blackwell
   source venv_blackwell/bin/activate
-  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
   pip install transformers datasets peft trl accelerate bitsandbytes
   ```
 
-### 2.2 Avvio dell'Addestramento (Ogni volta)
+### 2.3 Parametri Chiave dello Script
+
+I parametri in `train_dgx.py` sono stati calibrati per il GB10 con memoria unificata:
+
+| Parametro | Valore | Motivazione |
+|---|---|---|
+| `per_device_train_batch_size` | 1 | Batch conservativo per non saturare la RAM unificata |
+| `gradient_accumulation_steps` | 8 | Compensa il batch piccolo (effective batch = 8) |
+| `max_seq_length` | 1024 | Limita le sequenze (il dataset contiene testi fino a 57K token) |
+| `gradient_checkpointing` | True | Scambia velocità per memoria (~60% meno RAM) |
+| `optim` | `adamw_8bit` | Optimizer a 8-bit: dimezza la RAM dell'optimizer |
+| `max_memory` | 100 GiB | Lascia ~28 GB liberi per il sistema operativo |
+
+### 2.4 Avvio dell'Addestramento (Ogni volta)
 
 **Prerequisito:** All'apertura di ogni nuovo terminale, attivare prima l'ambiente virtuale. Se nel terminale vedi già il prefisso `(venv_blackwell)`, puoi saltare questo passaggio.
 
@@ -51,9 +70,9 @@ Una volta attivato, lanciare lo script di addestramento:
 python3 train_dgx.py
 ```
 
-Grazie alla potenza del sistema DGX Spark GB10 e al supporto FP4 nativo, il Memory Wall è finalmente superato. L'addestramento su un dataset di migliaia di esempi si concluderà in tempi irrisori, permettendoti di sperimentare con modelli altrimenti inaccessibili.
+Lo script stampa a video lo stato di avanzamento e il consumo di memoria. Con il dataset attuale (~900 campioni, 3 epoche), l'addestramento richiede circa 1-2 ore.
 
-### 2.3 Fusione dei Pesi (Ogni volta)
+### 2.5 Fusione dei Pesi (Ogni volta)
 
 Terminato il fine-tuning, i pesi dell'adapter specializzato saranno salvati nella cartella di output (es. `outputs/`). **Nella stessa sessione di terminale** (l'ambiente è ancora attivo), lancia lo script di fusione:
 
@@ -63,7 +82,7 @@ python3 merge_dgx.py
 
 Verrà creata la cartella `commercialista_blackwell_merged` contenente i pesi integrati pronti per Ollama.
 
-### 2.4 Integrazione su Ollama
+### 2.6 Integrazione su Ollama
 
 1. Creare un file testuale chiamato `Modelfile` (nella cartella `step6_finetuning`) con questo contenuto:
     ```dockerfile
