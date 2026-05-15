@@ -1,8 +1,11 @@
-# Cartelle pesanti generate da MLX
+# Cartelle pesanti e modelli generati
 mlx_env/
 adapters/
+outputs/
 commercialista_mlx/
 commercialista_mlx_fp16/
+commercialista_blackwell_merged/
+fused_model/
 
 # Repository pesanti scaricate 
 llama.cpp/
@@ -17,4 +20,14 @@ __pycache__/
 .DS_Store
 
 # (Opzionale: puoi decommentare sotto se NON vuoi salvare il tuo dataset su GitHub)
-# data/
+data/
+
+# Ambienti virtuali
+venv/
+venv_blackwell/
+env/
+.env/
+
+# Log e Checkpoint di addestramento (HuggingFace)
+runs/
+checkpoint-*/
