@@ -60,10 +60,10 @@ CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "../step3_ingestion/laws_vector_db")
 EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
 
 # per scaricarlo: ollama pull llama3.3:70b
-LLM_MODEL_NAME = "llama3.3:70b"
+# LLM_MODEL_NAME = "llama3.3:70b"
 
 # per scaricarlo: ollama pull command-r-plus
-# LLM_MODEL_NAME = "command-r-plus"
+LLM_MODEL_NAME = "command-r-plus"
 
 RETRIEVER_K = 4 # Number of law chunks to inject into the LLM logic
 
@@ -297,38 +297,49 @@ st.sidebar.header("📈 Stato Sistema (Blackwell)")
 
 @st.fragment(run_every="2s")
 def render_system_monitor():
-    cpu_usage = psutil.cpu_percent(interval=None)
-    ram_usage = psutil.virtual_memory().percent
+    # Uso CPU con un piccolo intervallo per consentire a psutil di calcolare il delta
+    cpu_usage = psutil.cpu_percent(interval=0.1)
+    
+    # Memoria Unificata (Grace-Blackwell)
+    # Calcoliamo l'uso effettivo sottraendo la memoria libera (in modo da includere cache/allocazioni driver)
+    mem = psutil.virtual_memory()
+    unified_usage_gb = (mem.total - mem.free) / (1024**3)
+    unified_total_gb = mem.total / (1024**3)
+    unified_percent = ((mem.total - mem.free) / mem.total) * 100
 
-    gpu_mem = "N/D"
     gpu_util = "N/D"
 
     try:
         import subprocess
-        # Interroga nvidia-smi per utilizzo e memoria su architetture Nvidia (es. DGX / Blackwell)
+        # Interroga nvidia-smi. Cerchiamo il picco massimo di utilizzo su tutte le GPU (ignora integrate in idle)
         res = subprocess.check_output(
-            ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used', '--format=csv,noheader,nounits'], 
+            ['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'], 
             text=True
         )
         lines = res.strip().split('\n')
+        max_util = 0
+        for line in lines:
+            try:
+                util = int(line.strip())
+                if util > max_util:
+                    max_util = util
+            except ValueError:
+                pass
         if lines:
-            parts = lines[0].split(',')
-            if len(parts) == 2:
-                gpu_util = f"{parts[0].strip()}%"
-                gpu_mem = f"{parts[1].strip()} MB"
+            gpu_util = f"{max_util}%"
     except Exception:
-        # Fallback se nvidia-smi fallisce o non è presente
-        if torch is not None and torch.cuda.is_available():
-            allocated = torch.cuda.memory_allocated() / (1024**2)
-            gpu_mem = f"{allocated:.1f} MB (Torch)"
+        pass
 
     col1, col2 = st.columns(2)
-    col1.metric("CPU", f"{cpu_usage}%")
-    col2.metric("RAM", f"{ram_usage}%")
+    col1.metric("CPU", f"{cpu_usage:.1f}%")
+    col2.metric("GPU Uso", gpu_util)
     
-    col3, col4 = st.columns(2)
-    col3.metric("GPU Uso", gpu_util)
-    col4.metric("GPU Mem", gpu_mem)
+    # Mostriamo un singolo box esteso per la memoria unificata
+    st.metric(
+        "Unified Mem (RAM+GPU)", 
+        f"{unified_usage_gb:.1f} GB / {unified_total_gb:.1f} GB", 
+        f"{unified_percent:.1f}%"
+    )
 
 with st.sidebar:
     render_system_monitor()
