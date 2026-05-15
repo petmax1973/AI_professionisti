@@ -29,7 +29,7 @@ def branch_normattiva(results):
         results['normattiva'] = False
         return
     # Fase 2 (Inizia immediatamente non appena finisce la Fase 1)
-    if not run_command("cd step2_preprocessing && python3 -u preprocess_rag.py", "Normattiva - Preprocessing (Fase 2)", log):
+    if not run_command("cd step2_preprocessing && source venv/bin/activate && python3 -u preprocess_rag.py", "Normattiva - Preprocessing (Fase 2)", log):
         results['normattiva'] = False
         return
     
