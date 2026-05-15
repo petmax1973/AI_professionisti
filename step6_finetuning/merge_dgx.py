@@ -2,7 +2,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import torch
 
-base_model = "meta-llama/Llama-3.2-3B-Instruct" # Modello di partenza usato
+base_model = "Qwen/Qwen2.5-32B-Instruct" # Modello di partenza usato
 adapter_dir = "./outputs"
 save_dir = "./commercialista_blackwell_merged"
 

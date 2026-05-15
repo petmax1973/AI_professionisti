@@ -15,7 +15,7 @@ quant_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16
 )
 
-base_model = "meta-llama/Llama-3.2-3B-Instruct"
+base_model = "Qwen/Qwen2.5-32B-Instruct"
 
 print("Caricamento tokenizer e modello in FP4...")
 tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -36,13 +36,25 @@ args = TrainingArguments(
     logging_steps=10
 )
 
+from peft import LoraConfig
+
+# Configurazione LoRA (Adapter)
+peft_config = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM"
+)
+
 # 4. Inizializzazione SFTTrainer
 trainer = SFTTrainer(
     model=model,
     train_dataset=dataset["train"],
     eval_dataset=dataset["test"],
     args=args,
-    # NOTA: qui potresti aggiungere la peft_config per LoRA
+    peft_config=peft_config, # Inserito l'adapter LoRA
 )
 
 # 5. Avvio Training

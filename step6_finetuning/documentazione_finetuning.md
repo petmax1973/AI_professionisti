@@ -33,26 +33,32 @@ Questo sistema rappresenta l'avanguardia per l'Intelligenza Artificiale. Grazie 
   ```bash
   python3 -m venv venv_blackwell
   source venv_blackwell/bin/activate
-  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
   pip install transformers datasets peft trl accelerate bitsandbytes
   ```
 
 ### 2.2 Avvio dell'Addestramento (Ogni volta)
 
-Avendo a disposizione questa rivoluzionaria tecnologia, usa lo script Python `train_dgx.py` (già fornito nella cartella) per sfruttare l'FP4 tramite `BitsAndBytesConfig` e `trl` (SFTTrainer).
+**Prerequisito:** All'apertura di ogni nuovo terminale, attivare prima l'ambiente virtuale. Se nel terminale vedi già il prefisso `(venv_blackwell)`, puoi saltare questo passaggio.
 
 ```bash
-python train_dgx.py
+source venv_blackwell/bin/activate
+```
+
+Una volta attivato, lanciare lo script di addestramento:
+
+```bash
+python3 train_dgx.py
 ```
 
 Grazie alla potenza del sistema DGX Spark GB10 e al supporto FP4 nativo, il Memory Wall è finalmente superato. L'addestramento su un dataset di migliaia di esempi si concluderà in tempi irrisori, permettendoti di sperimentare con modelli altrimenti inaccessibili.
 
 ### 2.3 Fusione dei Pesi (Ogni volta)
 
-Terminato il fine-tuning, i pesi dell'adapter specializzato saranno salvati nella cartella di output (es. `outputs/`). Usa lo script Python fornito `merge_dgx.py` per fondere le modifiche al modello base, sfruttando i Tensor Core in `bfloat16`.
+Terminato il fine-tuning, i pesi dell'adapter specializzato saranno salvati nella cartella di output (es. `outputs/`). **Nella stessa sessione di terminale** (l'ambiente è ancora attivo), lancia lo script di fusione:
 
 ```bash
-python merge_dgx.py
+python3 merge_dgx.py
 ```
 
 Verrà creata la cartella `commercialista_blackwell_merged` contenente i pesi integrati pronti per Ollama.
