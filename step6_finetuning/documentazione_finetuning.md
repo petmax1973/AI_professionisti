@@ -89,11 +89,35 @@ Verrà creata la cartella `commercialista_blackwell_merged` contenente i pesi in
     FROM ./commercialista_blackwell_merged
     PARAMETER temperature 0.1
     ```
-2. Importare e lanciare il modello finito in Ollama:
+2. Importare il modello in Ollama con quantizzazione **Q8_0** (consigliata per il GB10 con 128 GB di RAM):
     ```bash
-    ollama create mio_commercialista -f Modelfile
+    # Q8_0 — Consigliato: qualità quasi identica a BF16, ~34 GB di RAM
+    ollama create mio_commercialista -f Modelfile --quantize q8_0
+
+    # Alternative (scegliere UNA sola):
+    # Q6_K — Ottimo compromesso qualità/memoria, ~26 GB di RAM
+    # ollama create mio_commercialista -f Modelfile --quantize q6_k
+
+    # Q4_K_M — Buon compromesso, più leggero, ~20 GB di RAM
+    # ollama create mio_commercialista -f Modelfile --quantize q4_k_m
+
+    # Senza flag — mantiene BF16 pieno, ~64 GB di RAM
+    # ollama create mio_commercialista -f Modelfile
+    ```
+3. Lanciare il modello specializzato:
+    ```bash
     ollama run mio_commercialista
     ```
+
+> **Nota sulla quantizzazione:** Il merge produce pesi in BF16 (~64 GB). Ollama li converte in formato GGUF
+> applicando la quantizzazione scelta. Le opzioni disponibili sono:
+>
+> | Flag | RAM stimata (32B) | Qualità | Note |
+> |------|-------------------|---------|------|
+> | `q8_0` | ~34 GB | ⭐⭐⭐⭐⭐ | **Consigliato per GB10** — qualità quasi identica al BF16 |
+> | `q6_k` | ~26 GB | ⭐⭐⭐⭐ | Ottimo compromesso |
+> | `q4_k_m` | ~20 GB | ⭐⭐⭐⭐ | Buon compromesso, più leggero |
+> | *(nessuno)* | ~64 GB | BF16 pieno | Massima qualità ma occupa metà della RAM |
 
 ---
 

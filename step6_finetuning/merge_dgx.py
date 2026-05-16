@@ -3,11 +3,11 @@ from peft import PeftModel
 import torch
 
 base_model = "Qwen/Qwen2.5-32B-Instruct" # Modello di partenza usato
-adapter_dir = "./outputs"
+adapter_dir = "./outputs/final_adapter"
 save_dir = "./commercialista_blackwell_merged"
 
 print("Caricamento del modello base in bf16...")
-model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=torch.bfloat16, device_map="cuda")
+model = AutoModelForCausalLM.from_pretrained(base_model, dtype=torch.bfloat16, device_map="cuda")
 tokenizer = AutoTokenizer.from_pretrained(base_model)
 
 print("Unione dei pesi del Commercialista in corso...")

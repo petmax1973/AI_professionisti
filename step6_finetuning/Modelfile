@@ -1,2 +1,2 @@
-FROM ./commercialista_mlx_fp16
+FROM ./commercialista_blackwell_merged
 PARAMETER temperature 0.1
