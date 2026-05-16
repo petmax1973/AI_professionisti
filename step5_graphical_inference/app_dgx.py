@@ -100,7 +100,13 @@ def init_rag_system():
     db = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embeddings)
     retriever = db.as_retriever(search_kwargs={"k": RETRIEVER_K})
     
-    llm = Ollama(model=LLM_MODEL_NAME, temperature=0.0)
+    llm = Ollama(
+        model=LLM_MODEL_NAME,
+        temperature=0.1,         # Leggera casualità per evitare loop deterministici
+        repeat_penalty=1.3,      # Penalizza fortemente la ripetizione di token
+        num_predict=4096,         # Limita la lunghezza massima della risposta
+        stop=["DOMANDA DEL PROFESSIONISTA:", "DOMANDA:", "DOCUMENTI CARICATI:", "CONTESTO NORMATIVO"],  # Stop tokens per evitare che il modello rigeneri il prompt
+    )
     
     # 2. RAG Prompt Construction
     prompt_template = """Sei un severo e precisissimo assistente legale italiano, progettato per affiancare i commercialisti.

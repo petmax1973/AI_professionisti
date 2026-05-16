@@ -59,7 +59,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_DB_DIR = os.path.join(SCRIPT_DIR, "../step3_ingestion/laws_vector_db")
 
 EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
-LLM_MODEL_NAME = "llama3:latest"
+LLM_MODEL_NAME = "mio_commercialista:latest"
 # LLM_MODEL_NAME = "test_mlx_import2:latest"
 # LM_STUDIO_BASE_URL = "http://localhost:1234/v1"
 RETRIEVER_K = 4 # Number of law chunks to inject into the LLM logic
@@ -96,7 +96,13 @@ def init_rag_system():
     db = Chroma(persist_directory=CHROMA_DB_DIR, embedding_function=embeddings)
     retriever = db.as_retriever(search_kwargs={"k": RETRIEVER_K})
     
-    llm = Ollama(model=LLM_MODEL_NAME, temperature=0.0)
+    llm = Ollama(
+        model=LLM_MODEL_NAME,
+        temperature=0.1,         # Leggera casualità per evitare loop deterministici
+        repeat_penalty=1.3,      # Penalizza fortemente la ripetizione di token
+        num_predict=4096,         # Limita la lunghezza massima della risposta
+        stop=["DOMANDA DEL PROFESSIONISTA:", "DOMANDA:", "DOCUMENTI CARICATI:", "CONTESTO NORMATIVO"],  # Stop tokens per evitare che il modello rigeneri il prompt
+    )
     # llm = ChatOpenAI(
     #     base_url=LM_STUDIO_BASE_URL,
     #     api_key="lm-studio",  # Chiave fittizia per LM Studio
