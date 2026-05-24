@@ -65,7 +65,7 @@ EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-base"
 # per scaricarlo: ollama pull command-r-plus
 LLM_MODEL_NAME = "command-r-plus"
 
-RETRIEVER_K = 4 # Number of law chunks to inject into the LLM logic
+RETRIEVER_K = 7 # Number of law chunks to inject into the LLM logic
 
 # =========================
 # STREAMLIT CONFIGURATION
@@ -102,15 +102,15 @@ def init_rag_system():
     
     llm = Ollama(
         model=LLM_MODEL_NAME,
-        temperature=0.1,         # Leggera casualità per evitare loop deterministici
-        repeat_penalty=1.3,      # Penalizza fortemente la ripetizione di token
-        num_predict=4096,         # Limita la lunghezza massima della risposta
+        temperature=0.0,         # Massima aderenza, niente casualità
+        num_predict=4096,        # Limite di sicurezza vitale per fermare i loop
         stop=["DOMANDA DEL PROFESSIONISTA:", "DOMANDA:", "DOCUMENTI CARICATI:", "CONTESTO NORMATIVO"],  # Stop tokens per evitare che il modello rigeneri il prompt
     )
     
     # 2. RAG Prompt Construction
     prompt_template = """Sei un severo e precisissimo assistente legale italiano, progettato per affiancare i commercialisti.
 Devi rispondere alla domanda dell'utente basandoti sul contesto normativo estratto dalle banche dati ufficiali.
+Svolgi un'analisi fiscale e giuridica DETTAGLIATA, ACCURATA E APPROFONDITA. Argomenta i pro e i contro, cita gli articoli di legge e i principi rilevanti. DIVIETO ASSOLUTO: È severamente vietato creare elenchi puntati o riassunti in sequenza dei documenti forniti. Devi fondere i principi giuridici in un UNICO discorso fluido e analitico, estrapolando le 2 o 3 regole fondamentali senza recitare a memoria le fonti una per una.
 Sei autorizzato a usare la tua conoscenza generale su materie economiche, finanziarie e aziendali (es. definizioni di bilancio, calcolo di indici come il ROI) per interpretare o integrare la risposta, ma NON devi mai inventare articoli di legge non presenti nel contesto.
 REGOLA FONDAMENTALE 1: Non inventare date, numeri o leggi. Le norme devono provenire solo dal contesto.
 REGOLA FONDAMENTALE 2: Se la norma specifica per rispondere non è contenuta nel contesto, dillo chiaramente, ma se possibile offri comunque una spiegazione tecnica basata sulle tue conoscenze aziendali.
@@ -225,7 +225,7 @@ def process_uploaded_files(uploaded_files, embeddings):
     return temp_vectorstore
 
 doc_prompt_template = """Sei un assistente analitico esperto e un consulente aziendale/commercialista.
-Usa i dati contenuti nei documenti forniti per rispondere alla domanda dell'utente.
+Usa i dati contenuti nei documenti forniti per rispondere alla domanda dell'utente in modo analitico, esaustivo e ben strutturato. Dettaglia ogni calcolo e ragionamento in modo preciso.
 Sei pienamente autorizzato ad applicare le tue conoscenze in ambito economico, matematico e finanziario (es. formule di bilancio, calcolo del ROI, ROE, ecc.) per analizzare i dati presenti nei documenti.
 REGOLA 1: Non inventare dati aziendali o valori finanziari che non siano presenti nei documenti o che non siano calcolabili partendo da essi.
 REGOLA 2: Se i documenti non contengono i dati necessari per applicare le formule o rispondere alla domanda, specificalo chiaramente.
@@ -243,6 +243,7 @@ doc_prompt = PromptTemplate(template=doc_prompt_template, input_variables=["cont
 
 hybrid_prompt_template = """Sei un eccellente assistente legale e commerciale.
 Devi rispondere alla domanda dell'utente fondendo IN MODO LOGICO E CORRETTO le informazioni tratte dai documenti privati caricati dall'utente e le leggi italiane tratte dalla banca dati normativa.
+Fornisci una risposta analitica, esaustiva e ben strutturata. Esplora nel dettaglio ogni correlazione tra i dati e le norme, fornendo un quadro estremamente completo.
 Puoi usare la tua conoscenza tecnica generale (es. definizioni economico-finanziarie, calcolo di indici come il ROI) per elaborare le informazioni.
 REGOLA FONDAMENTALE 1: Cita chiaramente se un dato proviene dal "Documento Caricato" o dalla "Normativa".
 REGOLA FONDAMENTALE 2: Non inventare mai leggi, articoli o dati aziendali non presenti nei contesti. Le leggi devono provenire solo dal database normativo e i dati finanziari solo dai documenti caricati.
@@ -284,7 +285,7 @@ if app_mode in ["📊 Analisi Documenti Privati", "🧠 Analisi Ibrida (Document
             with st.spinner("Analisi e vettorializzazione dei documenti in corso..."):
                 temp_db = process_uploaded_files(uploaded_files, embeddings)
                 if temp_db:
-                    st.session_state.temp_retriever = temp_db.as_retriever(search_kwargs={"k": 4})
+                    st.session_state.temp_retriever = temp_db.as_retriever(search_kwargs={"k": 7})
                     st.sidebar.success("Documenti pronti per l'analisi!")
                 else:
                     st.sidebar.error("Impossibile elaborare i documenti.")

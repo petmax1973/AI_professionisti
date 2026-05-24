@@ -159,3 +159,20 @@ Segui questi passaggi ogni volta che desideri avviare l'assistente:
 - **Accelerazione CUDA Diretta**: `device='cuda'` configurato esplicitamente per il modello di embedding, bypassando calcoli lenti su CPU.
 - **Monitoraggio GPU Real-Time**: Interroga i sensori Nvidia tramite `nvidia-smi` per darti l'esatto utilizzo percentuale del core Blackwell e la VRAM allocata direttamente nella barra laterale di Streamlit.
 - **Isolamento e Pulizia**: Il progetto resta incapsulato e sicuro nella sua directory, senza necessità di installare librerie a livello di sistema operativo.
+
+---
+
+**III. SVILUPPI FUTURI: OTTIMIZZAZIONE AVANZATA DEL SISTEMA RAG**
+
+Attualmente il sistema estrae un numero fisso di documenti (Top-K) dalla banca dati vettoriale. Per superare questo limite e implementare una logica di estrazione ultra-selettiva ("prendi solo quello che serve davvero"), le evoluzioni consigliate per l'architettura sono:
+
+### 1. Metodo Re-Ranking (Cross-Encoder) --> RACCOMANDATO
+Questa è la soluzione standard e definitiva per i sistemi RAG in produzione (Enterprise). I database vettoriali sono velocissimi nella ricerca per vicinanza semantica, ma faticano a cogliere le sfumature logiche complesse.
+- **Funzionamento:** Si estraggono inizialmente un numero molto elevato di frammenti grezzi (es. i primi 40) tramite ChromaDB. Successivamente, si utilizza un modello AI specializzato e leggero chiamato **Re-ranker** (es. *bge-reranker*). Questo modello incrocia testualmente la domanda esatta dell'utente con ogni singolo frammento, assegnando un punteggio di pertinenza logica assoluta. Il sistema scarta poi tutti i documenti irrilevanti sotto una certa soglia e passa al LLM principale solo i frammenti strettamente necessari.
+- **Vantaggi:** Estrema precisione e abbattimento totale del rumore di fondo. Il LLM riceve solo informazioni vitali, azzerando le allucinazioni.
+
+### 2. Metodo Agenti Autonomi (Agentic RAG / ReAct)
+Invece di utilizzare una pipeline lineare (Ricerca singola -> Generazione), si trasforma il sistema in un **Agente Autonomo** capace di ragionare a cicli.
+- **Funzionamento:** L'LLM principale riceve la domanda dell'utente e decide autonomamente *cosa* cercare nel database. Dopo la prima ricerca, legge i risultati e si auto-valuta: *"Ho abbastanza informazioni per l'analisi completa? No, mi mancano i dettagli sull'art. 10-bis"*. A quel punto, genera da solo una seconda query di ricerca mirata. Quando ritiene di aver raccolto tutto e solo il contesto necessario, interrompe la ricerca ed elabora la risposta finale.
+- **Vantaggi:** Capacità di astrazione altissima. Perfetto per risolvere problemi complessi multi-step che richiedono di incrociare norme distanti tra loro.
+- **Svantaggi:** Complessità di implementazione (richiede orchestratori specifici) e tempi di generazione più lunghi dovuti ai molteplici cicli di pensiero.
